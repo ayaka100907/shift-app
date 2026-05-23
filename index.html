@@ -3,15 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>1人管理用シフト生成アプリ v11</title>
+<title>1人管理用シフト生成アプリ v12</title>
 <style>
 :root{--a:#00a6a6;--b:#76c7c9;--s:#e8f8f8;--l:#dceced;--t:#1f2a2c;--m:#6e7f82;--bg:#f7fbfb}
 *{box-sizing:border-box}
-html{overflow-x:hidden}body{margin:0;overflow-x:hidden;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;background:linear-gradient(#fff,#f7fbfb);color:var(--t)}
+html,body{overflow-x:hidden}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;background:linear-gradient(#fff,#f7fbfb);color:var(--t)}
 header{position:sticky;top:0;z-index:5;background:#fffffff2;border-bottom:1px solid var(--l);padding:12px}
 h1{font-size:18px;margin:0}.sub,.note{font-size:12px;color:var(--m);line-height:1.6}
-main{padding:12px 12px 74px;width:100%;max-width:1100px;margin:auto}
-.card{width:100%;max-width:100%;background:#fff;border:1px solid var(--l);border-radius:18px;padding:14px;margin:12px 0;box-shadow:0 8px 24px #007c7c12}
+main{padding:12px 10px 74px;width:100%;max-width:1100px;margin:auto}
+.card{width:100%;max-width:100%;background:#fff;border:1px solid var(--l);border-radius:18px;padding:12px;margin:12px 0;box-shadow:0 8px 24px #007c7c12}
 button,select,input{font:inherit;border-radius:12px;border:1px solid var(--l);background:#fff;padding:9px}
 button{border:0;background:var(--a);color:#fff;font-weight:800}.sec{background:#fff;color:var(--a);border:1px solid var(--l)}.soft{background:var(--s);color:var(--a)}.danger{background:#d95656}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.hide{display:none!important}
 .nav{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(5,1fr);gap:2px;background:#fffffff2;border-top:1px solid var(--l);padding:6px;z-index:6}
@@ -25,27 +26,23 @@ th:first-child,td:first-child{position:sticky;left:0;background:#fff;z-index:3;m
 thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!important}.sun{background:#fff1f1!important}
 .off{background:#eef2f2;color:#aaa}.work{background:#fff9e8}.late{background:#eaf7ff}.last{background:#edf7f2}
 .cell{width:74px;padding:6px;font-size:12px}.pair{display:flex;gap:3px;justify-content:center;margin-top:4px}.pair select{width:54px;padding:5px 1px;font-size:11px}
-.badge{background:var(--s);color:var(--a);font-weight:800;border-radius:999px;padding:8px 12px}.item{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--l);border-radius:14px;background:#fff;padding:10px;margin:7px 0}
+.badge{background:var(--s);color:var(--a);font-weight:800;border-radius:999px;padding:8px 12px;white-space:nowrap}.item{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--l);border-radius:14px;background:#fff;padding:10px;margin:7px 0}
 .grid{display:grid;grid-template-columns:1fr;gap:8px}.box,.grid>div{background:white;border:1px solid var(--l);border-radius:14px;padding:10px}.grid b{font-size:18px;display:block}
 .staffBtn{width:100%;text-align:left;background:#fff;color:var(--t);border:1px solid var(--l);box-shadow:none;margin:6px 0}.meta{font-size:12px;color:var(--m);margin-top:3px}.pill{display:inline-block;background:var(--s);color:var(--a);border-radius:999px;padding:3px 7px;margin:2px;font-size:11px}
-.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form label{font-size:11px;color:var(--m);font-weight:800}.form input,.form select{width:100%}.checks{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.checks label{background:var(--s);border-radius:12px;padding:8px;font-size:13px}
-.empCard{grid-column:1/-1;max-width:100%;overflow:hidden}.empHead{display:flex;justify-content:space-between;gap:8px;align-items:center}.weeks{display:flex;gap:8px;overflow:auto;padding-top:8px}.week{min-width:118px;background:#f7fbfb;border:1px solid var(--l);border-radius:12px;padding:8px}.week input{width:72px;padding:6px}
+.orderBtns{display:flex;gap:6px;margin-top:8px;align-items:center}.orderBtns button{padding:6px 9px;font-size:12px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form label{font-size:11px;color:var(--m);font-weight:800}.form input,.form select{width:100%}
+.skillGroup{display:grid;grid-template-columns:1fr 1fr;gap:6px}.skillGroup label{background:var(--s);border-radius:12px;padding:8px;font-size:13px}
+.empCard{grid-column:1/-1;max-width:100%;overflow:hidden}.empHead{display:flex;justify-content:space-between;gap:8px;align-items:center}.weeks{display:flex;gap:8px;overflow:auto;padding-top:8px;-webkit-overflow-scrolling:touch}.week{min-width:118px;background:#f7fbfb;border:1px solid var(--l);border-radius:12px;padding:8px}.week input{width:72px;padding:6px}
+.eventInput{width:72px;padding:4px 3px;font-size:11px;border-radius:8px;text-align:center;background:#fff}.eventHead{background:#f8ffff!important}
 .modal{position:fixed;inset:0;background:#1238;z-index:20;display:flex;align-items:center;justify-content:center;padding:8px}.inner{background:white;width:min(1100px,100%);max-height:92vh;overflow:auto;border-radius:18px;padding:14px}.mh{position:sticky;top:0;background:white;border-bottom:1px solid var(--l);padding-bottom:8px;display:flex;justify-content:space-between;gap:8px}
-.print{width:1120px;margin:auto}.pt{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}.pt th,.pt td{border:1px solid #777;padding:3px 1px;position:static!important;background:white!important}.pt th:first-child,.pt td:first-child{display:table-cell!important;width:58px}
-@media(max-width:700px){.grid,.form,.seg{grid-template-columns:1fr}main{padding-left:10px;padding-right:10px}.card{padding:12px}.badge{white-space:nowrap}}
-@media(orientation:landscape){.print{width:100%}.pt{font-size:7.2px}.pt th,.pt td{padding:2px 0;line-height:1.05}.pt th:first-child,.pt td:first-child{width:44px}}
+.print{width:1120px;margin:auto}.miniTitle{font-size:10px;text-align:left;margin:0 0 2px;color:#333}.pt{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}.pt th,.pt td{border:1px solid #777;padding:3px 1px;position:static!important;background:white!important}.pt th:first-child,.pt td:first-child{display:table-cell!important;width:58px}
+@media(max-width:700px){.form,.seg{grid-template-columns:1fr}.empHead{align-items:flex-start}.card{padding:12px}}
+@media(orientation:landscape){.print{width:100%}.pt{font-size:7px}.pt th,.pt td{padding:2px 0;line-height:1.05}.pt th:first-child,.pt td:first-child{width:44px}}
 @media print{body *{visibility:hidden}#preview,#preview *{visibility:visible}#preview{position:absolute;inset:0;background:white}.inner{width:100%;max-height:none;border-radius:0}.mh button,.mh .note{display:none}.print{width:100%}@page{size:A4 landscape;margin:8mm}}
-.miniTitle{font-size:10px;text-align:left;margin:0 0 2px;color:#333}.skillGroup{display:grid;grid-template-columns:1fr 1fr;gap:6px}.skillGroup label{background:var(--s);border-radius:12px;padding:8px;font-size:13px}.skillGroup .full{grid-column:1/-1}
-.orderBtns{display:flex;gap:6px;margin-top:8px}
-.orderBtns button{padding:6px 9px;font-size:12px}
-.eventInput{width:72px;padding:4px 3px;font-size:11px;border-radius:8px;text-align:center;background:#fff}
-.eventHead{background:#f8ffff!important}
-.skillGroup{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.skillGroup label{background:var(--s);border-radius:12px;padding:8px;font-size:13px}
 </style>
 </head>
 <body>
-<header><h1>1人管理用シフト生成アプリ v11</h1><div class="sub">並び順変更・イベント欄・スキル並び修正</div></header>
+<header><h1>1人管理用シフト生成アプリ v12</h1><div class="sub">安定版・並び順変更・イベント欄・スキル並び修正</div></header>
 
 <main>
 <section class="card">
@@ -59,7 +56,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
     <button class="sec" onclick="saveData()">保存</button>
     <button class="sec" onclick="resetData()">初期化</button>
   </div>
-  <p class="note">v7で真っ白になったため、処理を整理した安定版です。</p>
+  <p class="note">v11で不安定になったため、安定版をベースに作り直しました。</p>
 </section>
 
 <section id="pInput" class="card">
@@ -73,7 +70,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 <section id="pMonth" class="card hide">
   <h2>月間シフト</h2>
   <div class="seg"><button id="monthHall" onclick="setView('month','ホール')">ホール</button><button id="monthKitchen" class="sec" onclick="setView('month','調理場')">調理場</button></div>
-  <div class="row"><button onclick="autoMake(view.month)">自動生成</button><button class="sec" onclick="openPreview"()">プレビュー / 印刷</button><button class="sec" onclick="copyMonth()">月間コピー</button></div>
+  <div class="row"><button onclick="autoMake(view.month)">自動生成</button><button class="sec" onclick="openPreview()">プレビュー / 印刷</button><button class="sec" onclick="copyMonth()">月間コピー</button></div>
   <p class="note">各マスで手直しできます。</p>
   <div class="tw"><table id="monthTable"></table></div>
 </section>
@@ -97,7 +94,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 
 <section id="pStaff" class="card hide">
   <h2>スタッフ設定</h2>
-  <p class="note">スタッフを押すと詳細画面が開きます。</p>
+  <p class="note">↑↓で並び順を変更できます。この順番が全体に反映されます。</p>
   <div class="row"><button onclick="addStaff()">スタッフ追加</button><button class="sec" onclick="saveData()">保存</button></div>
   <div class="seg"><button id="staffHall" onclick="setStaffView('ホール')">ホール</button><button id="staffKitchen" class="sec" onclick="setStaffView('調理場')">調理場</button></div>
   <div id="staffList"></div>
@@ -116,7 +113,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 <div id="preview" class="modal hide"><div class="inner"><div class="mh"><div><b>月間シフト プレビュー</b><div class="note">月間で選んでいるホール/調理場だけ表示します。</div></div><div class="row"><button onclick="window.print()">印刷</button><button class="sec" onclick="closePreview()">閉じる</button></div></div><div id="sheet" class="print"></div></div></div>
 
 <script>
-const storeKey='shift_v11_single_manager';
+const storeKey='shift_v12_single_manager';
 let staff=[
 {id:'a',name:'a',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:11,be:20,half:false,close:false,set:false,max:5},
 {id:'b',name:'b',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,half:false,close:false,set:false,max:5},
@@ -170,11 +167,13 @@ function shown(section){return staff.filter(s=>s.role===view[section])}
 function setView(section,role){view[section]=role;renderAll()}
 function setStaffView(role){staffView=role;renderStaff()}
 function updateTabs(){
-  [['input','input'],['month','month'],['day','day']].forEach(([pre,key])=>{
-    let h=document.getElementById(pre+'Hall'), k=document.getElementById(pre+'Kitchen');
+  [['input','input'],['month','month'],['day','day']].forEach(pair=>{
+    let pre=pair[0], key=pair[1], h=document.getElementById(pre+'Hall'), k=document.getElementById(pre+'Kitchen');
     if(h&&k){h.className=view[key]==='ホール'?'on':'sec';k.className=view[key]==='調理場'?'on':'sec'}
   });
-  staffHall.className=staffView==='ホール'?'on':'sec'; staffKitchen.className=staffView==='調理場'?'on':'sec';
+  if(document.getElementById('staffHall')){
+    staffHall.className=staffView==='ホール'?'on':'sec'; staffKitchen.className=staffView==='調理場'?'on':'sec';
+  }
 }
 function showPanel(name){
   ['Input','Month','Day','Hours','Staff'].forEach(p=>{
@@ -185,18 +184,17 @@ function showPanel(name){
   if(name==='Hours') renderHours();
   if(name==='Staff') renderStaff();
 }
-function reqObj(id,k){requests[id]??={};requests[id][k]??={m:'',h:'17',d:'from'};return requests[id][k]}
-function setReq(id,k,key,val){reqObj(id,k)[key]=val;quickSave();renderReq()}
-
 function getEvent(k){return events[k]||''}
-function setEvent(k,v){events[k]=v;quickSave ? quickSave() : qs();renderAll()}
+function setEvent(k,v){events[k]=v;quickSave();renderAll()}
+function esc(s){return String(s||'').replace(/"/g,'&quot;')}
 function eventRowHtml(){
   return '<tr><th class="eventHead">イベント</th>'+dates.map(d=>{
     let k=ymd(d);
-    return `<th class="eventHead"><input class="eventInput" value="${getEvent(k).replace(/"/g,'&quot;')}" placeholder="メモ" onchange="setEvent('${k}',this.value)"></th>`
+    return `<th class="eventHead"><input class="eventInput" value="${esc(getEvent(k))}" placeholder="メモ" onchange="setEvent('${k}',this.value)"></th>`;
   }).join('')+'</tr>';
 }
-
+function reqObj(id,k){requests[id]??={};requests[id][k]??={m:'',h:'17',d:'from'};return requests[id][k]}
+function setReq(id,k,key,val){reqObj(id,k)[key]=val;quickSave();renderReq()}
 function renderReq(){
   updateTabs();
   let head='<thead>'+eventRowHtml()+'<tr><th>名前</th>'+dates.map(d=>`<th class="${d.getDay()==6?'sat':d.getDay()==0?'sun':''}">${d.getMonth()+1}/${d.getDate()}<br>${wd(d)}</th>`).join('')+'</tr></thead>';
@@ -229,18 +227,19 @@ function needs(d){return isWeekend(d)?[[9,11,1],[11,13,3],[13,17,4],[17,20,4],[2
 function covers(p,n){return p[1]<n[1]&&p[2]>n[0]}
 function val(s){return s.half?0.5:1}
 function streak(id,idx){let c=0;for(let i=idx-1;i>=0;i--){let k=ymd(dates[i]);if(schedule[k]?.[id])c++;else break}return c}
-function score(s){return (s.employment==='社員'?5:0)+({A:5,B:4,C:3,D:2,E:1}[s.rank]||0)+(s.close?2:0)+(s.skills?.includes('レジ締め')?2:0)+(s.skills?.includes('ドリバ締め')?2:0)+(s.skills?.includes('セッティング')?1:0)+(s.skills?.includes('ドリバ')?1:0)+(s.skills?.includes('鉄板')?1:0)+(s.skills?.includes('仕込み')?1:0)-(s.skills?.includes('新人')?1:0)}[s.rank]||0)+(s.close?2:0)+(s.skills?.includes('ドリバ締め')?2:0)+(s.skills?.includes('ドリバ')?1:0)+(s.skills?.includes('鉄板')?1:0)+(s.skills?.includes('仕込み')?1:0)-(s.skills?.includes('新人')?1:0)}
-function assign(k,idx,d,used,s,labels=[]){
+function score(s){return (s.employment==='社員'?5:0)+({A:5,B:4,C:3,D:2,E:1}[s.rank]||0)+(s.close?2:0)+(s.skills?.includes('レジ締め')?2:0)+(s.skills?.includes('ドリバ締め')?2:0)+(s.skills?.includes('セッティング')?1:0)+(s.skills?.includes('ドリバ')?1:0)+(s.skills?.includes('鉄板')?1:0)+(s.skills?.includes('仕込み')?1:0)-(s.skills?.includes('新人')?1:0)}
+function assignScoped(k,idx,d,used,s,labels=[]){
   if(used.has(s.id)||streak(s.id,idx)>=Number(s.max||5)) return false;
   let a=patterns(s,d).filter(p=>allowed(s,d,p));
   if(labels.length) a.sort((x,y)=>(labels.includes(y[0])?1:0)-(labels.includes(x[0])?1:0));
   if(!a.length) return false;
   schedule[k][s.id]={label:a[0][0],start:a[0][1],end:a[0][2]};
-  used.add(s.id);
-  return true;
+  used.add(s.id); return true;
 }
-function coverage(k,n){
+function coverageScoped(k,n,poolAll){
+  let ids=new Set(poolAll.map(s=>s.id));
   return Object.entries(schedule[k]||{}).reduce((sum,[id,p])=>{
+    if(!ids.has(id)) return sum;
     let s=staff.find(x=>x.id===id);
     return (p.start<n[1]&&p.end>n[0]) ? sum+val(s) : sum;
   },0)
@@ -251,9 +250,9 @@ function autoMake(role){
   dates.forEach((d,idx)=>{
     let k=ymd(d); schedule[k]??={}; let used=new Set();
     poolAll.forEach(s=>{ if(schedule[k]) delete schedule[k][s.id]; });
-    poolAll.filter(s=>s.set).some(s=>assignScoped(k,idx,d,used,s,['9','11']));
+    poolAll.filter(s=>s.set || s.skills?.includes('セッティング')).some(s=>assignScoped(k,idx,d,used,s,['9','11']));
     poolAll.filter(s=>s.employment==='社員').forEach(s=>assignScoped(k,idx,d,used,s,['11','13','15']));
-    poolAll.filter(s=>s.close || s.skills?.includes('ドリバ締め')).sort((a,b)=>score(b)-score(a)).some(s=>assignScoped(k,idx,d,used,s,isWeekend(d)?['17','18','15','14']:['17','18','15']));
+    poolAll.filter(s=>s.close || s.skills?.includes('レジ締め') || s.skills?.includes('ドリバ締め')).sort((a,b)=>score(b)-score(a)).some(s=>assignScoped(k,idx,d,used,s,isWeekend(d)?['17','18','15','14']:['17','18','15']));
     needs(d).forEach(n=>{
       let safe=0;
       while(coverageScoped(k,n,poolAll)<n[2] && safe++<30){
@@ -271,22 +270,6 @@ function autoMake(role){
     });
   });
   quickSave(); renderAll(); alert(role+'の自動生成をしました');
-}
-function assignScoped(k,idx,d,used,s,labels=[]){
-  if(used.has(s.id)||streak(s.id,idx)>=Number(s.max||5)) return false;
-  let a=patterns(s,d).filter(p=>allowed(s,d,p));
-  if(labels.length) a.sort((x,y)=>(labels.includes(y[0])?1:0)-(labels.includes(x[0])?1:0));
-  if(!a.length) return false;
-  schedule[k][s.id]={label:a[0][0],start:a[0][1],end:a[0][2]};
-  used.add(s.id); return true;
-}
-function coverageScoped(k,n,poolAll){
-  let ids=new Set(poolAll.map(s=>s.id));
-  return Object.entries(schedule[k]||{}).reduce((sum,[id,p])=>{
-    if(!ids.has(id)) return sum;
-    let s=staff.find(x=>x.id===id);
-    return (p.start<n[1]&&p.end>n[0]) ? sum+val(s) : sum;
-  },0)
 }
 function sampleReq(){
   requests={};
@@ -357,7 +340,7 @@ function renderWarnings(){
   let w=[];
   dates.forEach((d,i)=>{
     let k=ymd(d), dayObj=schedule[k]||{}, label=`${d.getMonth()+1}/${d.getDate()}(${wd(d)})`;
-    if(!staff.some(s=>s.close&&dayObj[s.id]?.end>=22)) w.push(`${label}：ラスト候補がいません`);
+    if(!staff.some(s=>(s.close || s.skills?.includes('レジ締め') || s.skills?.includes('ドリバ締め'))&&dayObj[s.id]?.end>=22)) w.push(`${label}：ラスト候補がいません`);
     staff.forEach(s=>{
       let r=reqObj(s.id,k);
       if(dayObj[s.id]&&r.m==='×') w.push(`${label}：${s.name} が休み希望に入っています`);
@@ -410,7 +393,14 @@ function openDetail(id){
 }
 function timeOpts(cur,a,b){let out='';for(let h=a;h<=b;h++)out+=`<option value="${h}" ${Number(cur)===h?'selected':''}>${h}:00</option>`;return out}
 function setStaff(key,val){let s=staff.find(x=>x.id===editing);s[key]=val;quickSave();openDetail(editing);renderAll();renderStaff()}
-function toggleSkill(skill,on){let s=staff.find(x=>x.id===editing);s.skills??=[];if(on&&!s.skills.includes(skill))s.skills.push(skill);if(!on)s.skills=s.skills.filter(x=>x!==skill);if(skill==='セッティング')s.set=on;if(skill==='レジ締め'||skill==='ドリバ締め')s.close=on||s.close;quickSave();openDetail(editing);renderAll()}
+function toggleSkill(skill,on){
+  let s=staff.find(x=>x.id===editing);s.skills??=[];
+  if(on&&!s.skills.includes(skill))s.skills.push(skill);
+  if(!on)s.skills=s.skills.filter(x=>x!==skill);
+  if(skill==='セッティング')s.set=on;
+  if(skill==='レジ締め'||skill==='ドリバ締め')s.close=on||s.close;
+  quickSave();openDetail(editing);renderAll();
+}
 function closeDetail(){detailModal.classList.add('hide');editing=null;renderStaff();renderAll()}
 function addStaff(){let id='s'+Date.now();staff.push({id,name:'新規',input:'off',role:staffView,employment:'バイト',rank:'C',skills:['新人'],bs:17,be:22,half:false,close:false,set:false,max:5});quickSave();renderStaff();renderAll()}
 function deleteStaff(id){if(confirm('削除しますか？')){staff=staff.filter(s=>s.id!==id);delete requests[id];Object.keys(schedule).forEach(k=>delete schedule[k][id]);delete actual[id];quickSave();closeDetail()}}
@@ -423,10 +413,10 @@ function renderPreview(){
   sheet.innerHTML=`<div class="miniTitle">${title} ${role}シフト</div><table class="pt">${head}${body}</table>`;
 }
 function copyMonth(){
-  let role=view.month, text='月間シフト '+role+'\\n';
+  let role=view.month, text='月間シフト '+role+'\n';
   dates.forEach(d=>{
     let k=ymd(d), items=staff.filter(s=>s.role===role&&schedule[k]?.[s.id]).map(s=>`${s.name}:${schedule[k][s.id].start}-${schedule[k][s.id].end}`).join(' / ');
-    text+=`${d.getMonth()+1}/${d.getDate()}(${wd(d)}) ${items}\\n`;
+    text+=`${d.getMonth()+1}/${d.getDate()}(${wd(d)}) ${items}\n`;
   });
   navigator.clipboard.writeText(text).then(()=>alert('コピーしました'));
 }
