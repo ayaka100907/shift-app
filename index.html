@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1人管理用シフト生成アプリ v8</title>
+<style>
+:root{--a:#00a6a6;--b:#76c7c9;--s:#e8f8f8;--l:#dceced;--t:#1f2a2c;--m:#6e7f82;--bg:#f7fbfb}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;background:linear-gradient(#fff,#f7fbfb);color:var(--t)}
+header{position:sticky;top:0;z-index:5;background:#fffffff2;border-bottom:1px solid var(--l);padding:12px}
+h1{font-size:18px;margin:0}.sub,.note{font-size:12px;color:var(--m);line-height:1.6}
+main{padding:12px 12px 74px;max-width:1100px;margin:auto}
+.card{background:#fff;border:1px solid var(--l);border-radius:18px;padding:14px;margin:12px 0;box-shadow:0 8px 24px #007c7c12}
+button,select,input{font:inherit;border-radius:12px;border:1px solid var(--l);background:#fff;padding:9px}
+button{border:0;background:var(--a);color:#fff;font-weight:800}.sec{background:#fff;color:var(--a);border:1px solid var(--l)}.soft{background:var(--s);color:var(--a)}.danger{background:#d95656}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.hide{display:none!important}
+.nav{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(5,1fr);gap:2px;background:#fffffff2;border-top:1px solid var(--l);padding:6px;z-index:6}
+.nav button{background:transparent;color:var(--m);font-size:11px;padding:8px 2px}.nav .on{background:var(--a);color:#fff}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}.seg .on{background:var(--a);color:#fff}.seg button{box-shadow:none}
+.tw{overflow:auto;border:1px solid var(--l);border-radius:14px;background:#fff;-webkit-overflow-scrolling:touch}.reqwrap{max-height:68vh}
+table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12px}
+th,td{border-right:1px solid var(--l);border-bottom:1px solid var(--l);padding:6px;text-align:center;white-space:nowrap;min-width:60px}
+thead th{position:sticky;top:0;background:#eafafa;z-index:2}
+th:first-child,td:first-child{position:sticky;left:0;background:#fff;z-index:3;min-width:86px;font-weight:800}
+thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!important}.sun{background:#fff1f1!important}
+.off{background:#eef2f2;color:#aaa}.work{background:#fff9e8}.late{background:#eaf7ff}.last{background:#edf7f2}
+.cell{width:74px;padding:6px;font-size:12px}.pair{display:flex;gap:3px;justify-content:center;margin-top:4px}.pair select{width:54px;padding:5px 1px;font-size:11px}
+.badge{background:var(--s);color:var(--a);font-weight:800;border-radius:999px;padding:8px 12px}.item{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--l);border-radius:14px;background:#fff;padding:10px;margin:7px 0}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.box,.grid>div{background:white;border:1px solid var(--l);border-radius:14px;padding:10px}.grid b{font-size:18px;display:block}
+.staffBtn{width:100%;text-align:left;background:#fff;color:var(--t);border:1px solid var(--l);box-shadow:none;margin:6px 0}.meta{font-size:12px;color:var(--m);margin-top:3px}.pill{display:inline-block;background:var(--s);color:var(--a);border-radius:999px;padding:3px 7px;margin:2px;font-size:11px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form label{font-size:11px;color:var(--m);font-weight:800}.form input,.form select{width:100%}.checks{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.checks label{background:var(--s);border-radius:12px;padding:8px;font-size:13px}
+.empCard{grid-column:1/-1}.empHead{display:flex;justify-content:space-between;gap:8px;align-items:center}.weeks{display:flex;gap:8px;overflow:auto;padding-top:8px}.week{min-width:128px;background:#f7fbfb;border:1px solid var(--l);border-radius:12px;padding:8px}.week input{width:72px;padding:6px}
+.modal{position:fixed;inset:0;background:#1238;z-index:20;display:flex;align-items:center;justify-content:center;padding:8px}.inner{background:white;width:min(1100px,100%);max-height:92vh;overflow:auto;border-radius:18px;padding:14px}.mh{position:sticky;top:0;background:white;border-bottom:1px solid var(--l);padding-bottom:8px;display:flex;justify-content:space-between;gap:8px}
+.print{width:1120px;margin:auto}.pt{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}.pt th,.pt td{border:1px solid #777;padding:3px 1px;position:static!important;background:white!important}.pt th:first-child,.pt td:first-child{display:table-cell!important;width:58px}
+@media(max-width:700px){.grid,.form,.seg{grid-template-columns:1fr}}
+@media(orientation:landscape){.print{width:100%}.pt{font-size:7.2px}.pt th,.pt td{padding:2px 0;line-height:1.05}.pt th:first-child,.pt td:first-child{width:44px}}
+@media print{body *{visibility:hidden}#preview,#preview *{visibility:visible}#preview{position:absolute;inset:0;background:white}.inner{width:100%;max-height:none;border-radius:0}.mh button,.mh .note{display:none}.print{width:100%}@page{size:A4 landscape;margin:8mm}}
+</style>
+</head>
+<body>
+<header><h1>1人管理用シフト生成アプリ v8</h1><div class="sub">安定版・ホール/調理場別・設定改善</div></header>
+
+<main>
+<section class="card">
+  <div class="row">
+    <span class="badge">1人管理用</span>
+    <select id="month" onchange="makeDates();renderAll()">
+      <option value="2026-05-11">2026/5/11〜6/10</option>
+      <option value="2026-06-11">2026/6/11〜7/10</option>
+      <option value="2026-07-11">2026/7/11〜8/10</option>
+    </select>
+    <button class="sec" onclick="saveData()">保存</button>
+    <button class="sec" onclick="resetData()">初期化</button>
+  </div>
+  <p class="note">v7で真っ白になったため、処理を整理した安定版です。</p>
+</section>
+
+<section id="pInput" class="card">
+  <h2>希望入力</h2>
+  <div class="seg"><button id="inputHall" onclick="setView('input','ホール')">ホール</button><button id="inputKitchen" class="sec" onclick="setView('input','調理場')">調理場</button></div>
+  <div class="row"><button class="soft" onclick="sampleReq()">サンプル入力</button><button onclick="autoMake()">自動生成</button><button class="sec" onclick="showPanel('Month')">月間を見る</button></div>
+  <p class="note">希望休を入力：×=休み、空欄=出勤可能。出勤を入力：○=出勤可能、空欄=休み希望。</p>
+  <div class="tw reqwrap"><table id="reqTable"></table></div>
+</section>
+
+<section id="pMonth" class="card hide">
+  <h2>月間シフト</h2>
+  <div class="seg"><button id="monthHall" onclick="setView('month','ホール')">ホール</button><button id="monthKitchen" class="sec" onclick="setView('month','調理場')">調理場</button></div>
+  <div class="row"><button onclick="autoMake()">自動生成</button><button class="sec" onclick="openPreview()">プレビュー / 印刷</button><button class="sec" onclick="copyMonth()">月間コピー</button></div>
+  <p class="note">各マスで手直しできます。</p>
+  <div class="tw"><table id="monthTable"></table></div>
+</section>
+
+<section id="pDay" class="card hide">
+  <h2>日別シフト</h2>
+  <div class="seg"><button id="dayHall" onclick="setView('day','ホール')">ホール</button><button id="dayKitchen" class="sec" onclick="setView('day','調理場')">調理場</button></div>
+  <div class="row"><select id="day" onchange="renderDay()"></select><span id="dayCount" class="badge">出勤0人</span></div>
+  <div id="dayList"></div>
+</section>
+
+<section id="pHours" class="card hide">
+  <h2>勤務時間</h2>
+  <p class="note">表は予定のみ。社員の週実績・残業は上カードで確認。</p>
+  <div id="employeeCards" class="grid"></div>
+  <h3>予定勤務時間</h3>
+  <div class="tw"><table id="hoursTable"></table></div>
+  <h3>警告</h3>
+  <div id="warnings"></div>
+</section>
+
+<section id="pStaff" class="card hide">
+  <h2>スタッフ設定</h2>
+  <p class="note">スタッフを押すと詳細画面が開きます。</p>
+  <div class="row"><button onclick="addStaff()">スタッフ追加</button><button class="sec" onclick="saveData()">保存</button></div>
+  <div class="seg"><button id="staffHall" onclick="setStaffView('ホール')">ホール</button><button id="staffKitchen" class="sec" onclick="setStaffView('調理場')">調理場</button></div>
+  <div id="staffList"></div>
+</section>
+</main>
+
+<nav class="nav">
+  <button id="nInput" class="on" onclick="showPanel('Input')">希望入力</button>
+  <button id="nMonth" onclick="showPanel('Month')">月間</button>
+  <button id="nDay" onclick="showPanel('Day')">日別</button>
+  <button id="nHours" onclick="showPanel('Hours')">時間</button>
+  <button id="nStaff" onclick="showPanel('Staff')">設定</button>
+</nav>
+
+<div id="detailModal" class="modal hide"><div class="inner"><div class="mh"><div><b id="detailTitle">スタッフ詳細</b><div class="note">自動生成の基準を設定します。</div></div><button class="sec" onclick="closeDetail()">閉じる</button></div><div id="detailBody"></div></div></div>
+<div id="preview" class="modal hide"><div class="inner"><div class="mh"><div><b>月間シフト プレビュー</b><div class="note">月間で選んでいるホール/調理場だけ表示します。</div></div><div class="row"><button onclick="window.print()">印刷</button><button class="sec" onclick="closePreview()">閉じる</button></div></div><div id="sheet" class="print"></div></div></div>
+
+<script>
+const storeKey='shift_v8_single_manager';
+let staff=[
+{id:'a',name:'a',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:11,be:20,half:false,close:false,set:false,max:5},
+{id:'b',name:'b',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,half:false,close:false,set:false,max:5},
+{id:'c',name:'c',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,half:false,close:false,set:false,max:5},
+{id:'d',name:'d',input:'off',role:'調理場',employment:'バイト',rank:'B',skills:['仕込み'],bs:9,be:18,half:false,close:false,set:true,max:5},
+{id:'e',name:'e',input:'off',role:'調理場',employment:'バイト',rank:'B',skills:['仕込み'],bs:11,be:20,half:false,close:false,set:true,max:5},
+{id:'f',name:'f',input:'off',role:'ホール',employment:'バイト',rank:'B',skills:['ドリバ'],bs:9,be:17,half:false,close:false,set:false,max:5},
+{id:'g',name:'g',input:'off',role:'ホール',employment:'バイト',rank:'C',skills:['新人'],bs:9,be:16,half:true,close:false,set:false,max:5},
+{id:'h',name:'h',input:'off',role:'ホール',employment:'バイト',rank:'A',skills:[],bs:15,be:22,half:false,close:true,set:false,max:4},
+{id:'i',name:'i',input:'off',role:'ホール',employment:'バイト',rank:'A',skills:[],bs:15,be:22,half:false,close:true,set:false,max:4},
+{id:'j',name:'j',input:'work',role:'ホール',employment:'バイト',rank:'C',skills:['新人'],bs:18,be:22,half:false,close:false,set:false,max:5},
+{id:'k',name:'k',input:'work',role:'ホール',employment:'バイト',rank:'A',skills:['ドリバ'],bs:17,be:22,half:false,close:true,set:false,max:5},
+{id:'l',name:'l',input:'work',role:'ホール',employment:'バイト',rank:'C',skills:['新人'],bs:18,be:22,half:false,close:false,set:false,max:5},
+{id:'m',name:'m',input:'work',role:'ホール',employment:'バイト',rank:'A',skills:[],bs:17,be:22,half:false,close:true,set:false,max:5},
+{id:'n',name:'n',input:'work',role:'ホール',employment:'バイト',rank:'B',skills:['ドリバ'],bs:16,be:22,half:false,close:false,set:false,max:5},
+{id:'o',name:'o',input:'work',role:'ホール',employment:'バイト',rank:'C',skills:['新人'],bs:17,be:22,half:true,close:false,set:false,max:5},
+{id:'p',name:'p',input:'work',role:'ホール',employment:'バイト',rank:'C',skills:['新人'],bs:17,be:22,half:true,close:false,set:false,max:5}
+];
+let dates=[],requests={},schedule={},actual={},view={input:'ホール',month:'ホール',day:'ホール'},staffView='ホール',editing=null;
+const H=[9,10,11,12,13,14,15,16,17,18,19], skills=['新人','ドリバ','串打ち','仕込み','鉄板'];
+const patWeek=[['9',9,17],['9',9,18],['11',11,20],['13',13,22],['15',15,22],['17',17,22],['18',18,22]];
+const patEnd=[['9',9,17],['9',9,18],['11',11,20],['14',14,23],['15',15,23],['17',17,23],['18',18,23]];
+const ymd=d=>d.toISOString().slice(0,10);
+const wd=d=>'日月火水木金土'[d.getDay()];
+const isWeekend=d=>d.getDay()===0||d.getDay()===6;
+
+function makeDates(){
+  let s=new Date(month.value+'T00:00:00'), e=new Date(s);
+  e.setMonth(e.getMonth()+1); e.setDate(10);
+  dates=[];
+  for(let d=new Date(s); d<=e; d.setDate(d.getDate()+1)) dates.push(new Date(d));
+  day.innerHTML=dates.map(d=>`<option value="${ymd(d)}">${d.getMonth()+1}/${d.getDate()}（${wd(d)}）</option>`).join('');
+}
+function loadData(){
+  try{
+    let d=JSON.parse(localStorage.getItem(storeKey)||'{}');
+    if(d.staff) staff=d.staff;
+    requests=d.requests||{};
+    schedule=d.schedule||{};
+    actual=d.actual||{};
+  }catch(e){}
+}
+function saveData(){
+  localStorage.setItem(storeKey,JSON.stringify({staff,requests,schedule,actual}));
+  alert('保存しました');
+}
+function quickSave(){localStorage.setItem(storeKey,JSON.stringify({staff,requests,schedule,actual}))}
+function resetData(){if(confirm('初期化しますか？')){localStorage.removeItem(storeKey);location.reload()}}
+function shown(section){return staff.filter(s=>s.role===view[section])}
+function setView(section,role){view[section]=role;renderAll()}
+function setStaffView(role){staffView=role;renderStaff()}
+function updateTabs(){
+  [['input','input'],['month','month'],['day','day']].forEach(([pre,key])=>{
+    let h=document.getElementById(pre+'Hall'), k=document.getElementById(pre+'Kitchen');
+    if(h&&k){h.className=view[key]==='ホール'?'on':'sec';k.className=view[key]==='調理場'?'on':'sec'}
+  });
+  staffHall.className=staffView==='ホール'?'on':'sec'; staffKitchen.className=staffView==='調理場'?'on':'sec';
+}
+function showPanel(name){
+  ['Input','Month','Day','Hours','Staff'].forEach(p=>{
+    document.getElementById('p'+p).classList.toggle('hide',p!==name);
+    document.getElementById('n'+p).classList.toggle('on',p===name);
+  });
+  if(name==='Day') renderDay();
+  if(name==='Hours') renderHours();
+  if(name==='Staff') renderStaff();
+}
+function reqObj(id,k){requests[id]??={};requests[id][k]??={m:'',h:'17',d:'from'};return requests[id][k]}
+function setReq(id,k,key,val){reqObj(id,k)[key]=val;quickSave();renderReq()}
+function renderReq(){
+  updateTabs();
+  let head='<thead><tr><th>名前</th>'+dates.map(d=>`<th class="${d.getDay()==6?'sat':d.getDay()==0?'sun':''}">${d.getMonth()+1}/${d.getDate()}<br>${wd(d)}</th>`).join('')+'</tr></thead>';
+  let body=shown('input').map(s=>{
+    return '<tr><td>'+s.name+'<br><span class="note">'+(s.input==='work'?'出勤入力':'希望休入力')+'</span></td>'+
+      dates.map(d=>{
+        let k=ymd(d), r=reqObj(s.id,k), opts=s.input==='work'?['','○','×','時間']:['','×','時間'];
+        return `<td><select class="cell" onchange="setReq('${s.id}','${k}','m',this.value)">${opts.map(o=>`<option value="${o}" ${o===r.m?'selected':''}>${o||'空欄'}</option>`).join('')}</select>${r.m==='時間'?`<div class="pair"><select onchange="setReq('${s.id}','${k}','h',this.value)">${H.map(h=>`<option value="${h}" ${String(h)===String(r.h)?'selected':''}>${h}時</option>`).join('')}</select><select onchange="setReq('${s.id}','${k}','d',this.value)"><option value="from" ${r.d==='from'?'selected':''}>から</option><option value="until" ${r.d==='until'?'selected':''}>まで</option></select></div>`:''}</td>`;
+      }).join('')+'</tr>';
+  }).join('');
+  reqTable.innerHTML=head+'<tbody>'+body+'</tbody>';
+}
+function allowed(s,d,p){
+  let r=reqObj(s.id,ymd(d));
+  if(s.input==='work'){
+    if(r.m===''||r.m==='×') return false;
+    if(r.m==='○') return true;
+  }else{
+    if(r.m==='×') return false;
+  }
+  if(r.m==='時間'){
+    let h=Number(r.h);
+    if(r.d==='from' && p[1]<h) return false;
+    if(r.d==='until' && p[2]>h) return false;
+  }
+  return true;
+}
+function patterns(s,d){return (isWeekend(d)?patEnd:patWeek).filter(p=>p[1]>=Number(s.bs)&&p[2]<=Number(s.be))}
+function needs(d){return isWeekend(d)?[[9,11,1],[11,13,3],[13,17,4],[17,20,4],[20,23,3]]:[[9,11,1],[11,13,3],[13,15,3],[15,17,3],[17,20,4],[20,22,3]]}
+function covers(p,n){return p[1]<n[1]&&p[2]>n[0]}
+function val(s){return s.half?0.5:1}
+function streak(id,idx){let c=0;for(let i=idx-1;i>=0;i--){let k=ymd(dates[i]);if(schedule[k]?.[id])c++;else break}return c}
+function score(s){return (s.employment==='社員'?5:0)+({A:3,B:2,C:1}[s.rank]||0)+(s.close?2:0)+(s.skills?.includes('ドリバ')?1:0)+(s.skills?.includes('鉄板')?1:0)+(s.skills?.includes('仕込み')?1:0)-(s.skills?.includes('新人')?1:0)}
+function assign(k,idx,d,used,s,labels=[]){
+  if(used.has(s.id)||streak(s.id,idx)>=Number(s.max||5)) return false;
+  let a=patterns(s,d).filter(p=>allowed(s,d,p));
+  if(labels.length) a.sort((x,y)=>(labels.includes(y[0])?1:0)-(labels.includes(x[0])?1:0));
+  if(!a.length) return false;
+  schedule[k][s.id]={label:a[0][0],start:a[0][1],end:a[0][2]};
+  used.add(s.id);
+  return true;
+}
+function coverage(k,n){
+  return Object.entries(schedule[k]||{}).reduce((sum,[id,p])=>{
+    let s=staff.find(x=>x.id===id);
+    return (p.start<n[1]&&p.end>n[0]) ? sum+val(s) : sum;
+  },0)
+}
+function autoMake(){
+  schedule={};
+  dates.forEach((d,idx)=>{
+    let k=ymd(d); schedule[k]={}; let used=new Set();
+    staff.filter(s=>s.set).some(s=>assign(k,idx,d,used,s,['9','11']));
+    staff.filter(s=>s.employment==='社員').forEach(s=>assign(k,idx,d,used,s,['11','13','15']));
+    staff.filter(s=>s.close).sort((a,b)=>score(b)-score(a)).some(s=>assign(k,idx,d,used,s,isWeekend(d)?['17','18','15','14']:['17','18','15']));
+    needs(d).forEach(n=>{
+      let safe=0;
+      while(coverage(k,n)<n[2] && safe++<30){
+        let pool=staff.filter(s=>!used.has(s.id)).sort((a,b)=>score(b)-score(a));
+        let ok=false;
+        for(let s of pool){
+          if(streak(s.id,idx)>=Number(s.max||5)) continue;
+          let a=patterns(s,d).filter(p=>allowed(s,d,p)&&covers(p,n));
+          if(!a.length) continue;
+          schedule[k][s.id]={label:a[0][0],start:a[0][1],end:a[0][2]};
+          used.add(s.id); ok=true; break;
+        }
+        if(!ok) break;
+      }
+    });
+  });
+  quickSave(); renderAll(); alert('自動生成しました');
+}
+function sampleReq(){
+  requests={};
+  dates.forEach((d,i)=>staff.forEach(s=>{
+    let r=reqObj(s.id,ymd(d));
+    r.m=s.input==='work'?((i+s.id.charCodeAt(0))%4===0?'○':''):((i+s.id.charCodeAt(0))%11===0?'×':'');
+    r.h=String(9+((i+s.id.charCodeAt(0))%11)); r.d=i%2?'until':'from';
+  }));
+  quickSave(); renderReq();
+}
+function shiftOptions(sel){return ['','休','9','11','13','14','15','17','18'].map(o=>`<option value="${o}" ${o===sel?'selected':''}>${o||'空欄'}</option>`).join('')}
+function setShift(id,k,v){
+  schedule[k]??={};
+  if(v===''||v==='休'){delete schedule[k][id]}
+  else{
+    let d=dates.find(x=>ymd(x)===k), p=(isWeekend(d)?patEnd:patWeek).find(x=>x[0]===v);
+    if(p) schedule[k][id]={label:p[0],start:p[1],end:p[2]};
+  }
+  quickSave(); renderAll();
+}
+function renderMonth(){
+  updateTabs();
+  let head='<thead><tr><th>名前</th>'+dates.map(d=>`<th class="${d.getDay()==6?'sat':d.getDay()==0?'sun':''}">${d.getMonth()+1}/${d.getDate()}<br>${wd(d)}</th>`).join('')+'</tr></thead>';
+  let body=shown('month').map(s=>{
+    return '<tr><td>'+s.name+'<br><span class="note">'+s.role+'</span></td>'+
+      dates.map(d=>{
+        let k=ymd(d), p=schedule[k]?.[s.id], cls=!p?'off':p.end>=22?'last':p.start>=15?'late':'work';
+        return `<td class="${cls}"><select class="cell" onchange="setShift('${s.id}','${k}',this.value)">${shiftOptions(p?p.label:'休')}</select></td>`
+      }).join('')+'</tr>'
+  }).join('');
+  monthTable.innerHTML=head+'<tbody>'+body+'</tbody>';
+}
+function renderDay(){
+  updateTabs();
+  let k=day.value, list=shown('day').filter(s=>schedule[k]?.[s.id]).map(s=>[s,schedule[k][s.id]]);
+  dayCount.textContent='出勤 '+list.length+'人';
+  dayList.innerHTML=list.length?list.map(([s,p])=>`<div class="item"><strong>${s.name}</strong><span>${String(p.start).padStart(2,'0')}:00〜${String(p.end).padStart(2,'0')}:00</span></div>`).join(''):'<p class="note">まだシフトがありません。</p>';
+}
+function hoursOf(p){return Math.max(0,p.end-p.start-(p.end-p.start>=6?1:0))}
+function weekLabel(d){let s=new Date(d);s.setDate(d.getDate()-d.getDay()+1);let e=new Date(s);e.setDate(s.getDate()+6);return `${s.getMonth()+1}/${s.getDate()}〜${e.getMonth()+1}/${e.getDate()}`}
+function planned(){
+  let r={}; staff.forEach(s=>r[s.id]={m:0,w:{}});
+  dates.forEach(d=>{
+    let k=ymd(d), w=weekLabel(d);
+    staff.forEach(s=>{
+      r[s.id].w[w]??=0;
+      let p=schedule[k]?.[s.id];
+      if(p){let h=hoursOf(p);r[s.id].m+=h;r[s.id].w[w]+=h}
+    })
+  });
+  return r;
+}
+function setActual(id,w,v){actual[id]??={};actual[id][w]=v;quickSave();renderHours()}
+function renderHours(){
+  let p=planned(), weeks=[...new Set(dates.map(weekLabel))];
+  employeeCards.innerHTML=staff.filter(s=>s.employment==='社員').map(s=>{
+    let am=Object.values(actual[s.id]||{}).reduce((a,b)=>a+(+b||0),0);
+    let wo=weeks.reduce((m,w)=>m+Math.max(0,(+actual[s.id]?.[w]||0)-40),0);
+    let mo=Math.max(0,am-173);
+    let use=Math.max(wo,mo);
+    return `<div class="empCard"><div class="empHead"><div><span class="note">${s.name}</span><b>実績 ${am}h / 残業 ${use}h</b></div><span class="badge">残り ${Math.max(0,30-use)}h</span></div><div class="weeks">${weeks.map(w=>`<div class="week"><div class="note">${w}</div><input type="number" step="0.5" value="${actual[s.id]?.[w]||''}" placeholder="実績" onchange="setActual('${s.id}','${w}',this.value)"> h</div>`).join('')}</div></div>`
+  }).join('');
+  hoursTable.innerHTML='<thead><tr><th>名前</th><th>月予定</th>'+weeks.map(w=>`<th>${w}</th>`).join('')+'</tr></thead><tbody>'+
+    staff.map(s=>`<tr><td>${s.name}</td><td>${p[s.id].m}h</td>${weeks.map(w=>`<td>${p[s.id].w[w]||0}h</td>`).join('')}</tr>`).join('')+'</tbody>';
+  renderWarnings();
+}
+function renderWarnings(){
+  let w=[];
+  dates.forEach((d,i)=>{
+    let k=ymd(d), dayObj=schedule[k]||{}, label=`${d.getMonth()+1}/${d.getDate()}(${wd(d)})`;
+    if(!staff.some(s=>s.close&&dayObj[s.id]?.end>=22)) w.push(`${label}：ラスト候補がいません`);
+    staff.forEach(s=>{
+      let r=reqObj(s.id,k);
+      if(dayObj[s.id]&&r.m==='×') w.push(`${label}：${s.name} が休み希望に入っています`);
+      if(dayObj[s.id]&&s.input==='work'&&r.m==='') w.push(`${label}：${s.name} が○なしの日に入っています`);
+    });
+  });
+  warnings.innerHTML=w.length?w.map(x=>`<div class="item"><span style="color:#d95656;font-weight:800">!</span><span>${x}</span></div>`).join(''):'<p style="color:#2d8f74;font-weight:800">大きな警告はありません。</p>';
+}
+function renderStaff(){
+  updateTabs();
+  staffHall.className=staffView==='ホール'?'on':'sec';
+  staffKitchen.className=staffView==='調理場'?'on':'sec';
+  let list=staff.filter(s=>s.role===staffView);
+  staffList.innerHTML=list.length?list.map(s=>`<button class="staffBtn" onclick="openDetail('${s.id}')"><strong>${s.name}</strong><div class="meta">${s.employment} / ${s.role} / ${s.bs}:00〜${s.be}:00</div><div class="note">詳細 ›</div></button>`).join(''):'<p class="note">このページのスタッフはいません。</p>';
+}
+function openDetail(id){
+  editing=id; let s=staff.find(x=>x.id===id);
+  detailTitle.textContent=s.name+' 詳細';
+  detailBody.innerHTML=`<div class="form">
+    <div><label>表示名</label><input value="${s.name}" onchange="setStaff('name',this.value)"></div>
+    <div><label>雇用形態</label><select onchange="setStaff('employment',this.value)"><option ${s.employment==='社員'?'selected':''}>社員</option><option ${s.employment==='バイト'?'selected':''}>バイト</option></select></div>
+    <div><label>入力型</label><select onchange="setStaff('input',this.value)"><option value="off" ${s.input==='off'?'selected':''}>希望休を入力</option><option value="work" ${s.input==='work'?'selected':''}>出勤を入力</option></select></div>
+    <div><label>役割</label><select onchange="setStaff('role',this.value)"><option ${s.role==='ホール'?'selected':''}>ホール</option><option ${s.role==='調理場'?'selected':''}>調理場</option></select></div>
+    <div><label>基本開始</label><select onchange="setStaff('bs',Number(this.value))">${timeOpts(s.bs,9,22)}</select></div>
+    <div><label>基本終了</label><select onchange="setStaff('be',Number(this.value))">${timeOpts(s.be,10,23)}</select></div>
+  </div>
+  <div class="checks" style="margin-top:12px">${skills.map(x=>`<label><input type="checkbox" ${s.skills?.includes(x)?'checked':''} onchange="toggleSkill('${x}',this.checked)"> ${x}</label>`).join('')}</div>
+  <div class="form" style="margin-top:12px"><div><label>ランク</label><select onchange="setStaff('rank',this.value)"><option value="" ${!s.rank?'selected':''}>未設定</option><option ${s.rank==='A'?'selected':''}>A</option><option ${s.rank==='B'?'selected':''}>B</option><option ${s.rank==='C'?'selected':''}>C</option></select></div></div>
+  <div class="row" style="margin-top:12px"><button class="sec" onclick="closeDetail()">戻る</button><button class="danger" onclick="deleteStaff('${s.id}')">削除</button></div>`;
+  detailModal.classList.remove('hide');
+}
+function timeOpts(cur,a,b){let out='';for(let h=a;h<=b;h++)out+=`<option value="${h}" ${Number(cur)===h?'selected':''}>${h}:00</option>`;return out}
+function setStaff(key,val){let s=staff.find(x=>x.id===editing);s[key]=val;quickSave();openDetail(editing);renderAll();renderStaff()}
+function toggleSkill(skill,on){let s=staff.find(x=>x.id===editing);s.skills??=[];if(on&&!s.skills.includes(skill))s.skills.push(skill);if(!on)s.skills=s.skills.filter(x=>x!==skill);quickSave();openDetail(editing);renderAll()}
+function closeDetail(){detailModal.classList.add('hide');editing=null;renderStaff();renderAll()}
+function addStaff(){let id='s'+Date.now();staff.push({id,name:'新規',input:'off',role:staffView,employment:'バイト',rank:'C',skills:['新人'],bs:17,be:22,half:false,close:false,set:false,max:5});quickSave();renderStaff();renderAll()}
+function deleteStaff(id){if(confirm('削除しますか？')){staff=staff.filter(s=>s.id!==id);delete requests[id];Object.keys(schedule).forEach(k=>delete schedule[k][id]);delete actual[id];quickSave();closeDetail()}}
+function openPreview(){renderPreview();preview.classList.remove('hide')}
+function closePreview(){preview.classList.add('hide')}
+function renderPreview(){
+  let role=view.month, title=month.selectedOptions[0].textContent, list=staff.filter(s=>s.role===role);
+  let head='<tr><th></th>'+dates.map(d=>`<th>${d.getDate()}<br>${wd(d)}</th>`).join('')+'</tr>';
+  let body=list.map(s=>'<tr><td>'+s.name+'</td>'+dates.map(d=>{let p=schedule[ymd(d)]?.[s.id];return '<td>'+(p?p.label:'／')+'</td>'}).join('')+'</tr>').join('');
+  sheet.innerHTML=`<h2 style="text-align:center">${title} ${role}シフト</h2><table class="pt">${head}${body}</table>`;
+}
+function copyMonth(){
+  let role=view.month, text='月間シフト '+role+'\\n';
+  dates.forEach(d=>{
+    let k=ymd(d), items=staff.filter(s=>s.role===role&&schedule[k]?.[s.id]).map(s=>`${s.name}:${schedule[k][s.id].start}-${schedule[k][s.id].end}`).join(' / ');
+    text+=`${d.getMonth()+1}/${d.getDate()}(${wd(d)}) ${items}\\n`;
+  });
+  navigator.clipboard.writeText(text).then(()=>alert('コピーしました'));
+}
+function renderAll(){updateTabs();renderReq();renderMonth();renderDay();renderHours()}
+makeDates();loadData();renderAll();
+</script>
+</body>
+</html>
