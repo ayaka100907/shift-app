@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>1人管理用シフト生成アプリ v9</title>
+<title>1人管理用シフト生成アプリ v10</title>
 <style>
 :root{--a:#00a6a6;--b:#76c7c9;--s:#e8f8f8;--l:#dceced;--t:#1f2a2c;--m:#6e7f82;--bg:#f7fbfb}
 *{box-sizing:border-box}
@@ -38,7 +38,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 .miniTitle{font-size:10px;text-align:left;margin:0 0 2px;color:#333}.skillGroup{display:grid;grid-template-columns:1fr 1fr;gap:6px}.skillGroup label{background:var(--s);border-radius:12px;padding:8px;font-size:13px}.skillGroup .full{grid-column:1/-1}</style>
 </head>
 <body>
-<header><h1>1人管理用シフト生成アプリ v9</h1><div class="sub">レイアウト修正・部門別自動生成・ランクA〜E</div></header>
+<header><h1>1人管理用シフト生成アプリ v10</h1><div class="sub">v9固まり修正・部門別自動生成・ランクA〜E</div></header>
 
 <main>
 <section class="card">
@@ -109,7 +109,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 <div id="preview" class="modal hide"><div class="inner"><div class="mh"><div><b>月間シフト プレビュー</b><div class="note">月間で選んでいるホール/調理場だけ表示します。</div></div><div class="row"><button onclick="window.print()">印刷</button><button class="sec" onclick="closePreview()">閉じる</button></div></div><div id="sheet" class="print"></div></div></div>
 
 <script>
-const storeKey='shift_v9_single_manager';
+const storeKey='shift_v10_single_manager';
 let staff=[
 {id:'a',name:'a',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:11,be:20,half:false,close:false,set:false,max:5},
 {id:'b',name:'b',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,half:false,close:false,set:false,max:5},
@@ -211,7 +211,7 @@ function needs(d){return isWeekend(d)?[[9,11,1],[11,13,3],[13,17,4],[17,20,4],[2
 function covers(p,n){return p[1]<n[1]&&p[2]>n[0]}
 function val(s){return s.half?0.5:1}
 function streak(id,idx){let c=0;for(let i=idx-1;i>=0;i--){let k=ymd(dates[i]);if(schedule[k]?.[id])c++;else break}return c}
-function score(s){return (s.employment==='社員'?5:0)+({A:5,B:4,C:3,D:2,E:1}[s.rank]||0)+(s.close?2:0)+(s.skills?.includes('ドリバ締め')?2:0)+(s.skills?.includes('ドリバ')?1:0)+(s.skills?.includes('鉄板')?1:0)+(s.skills?.includes('仕込み')?1:0)-(s.skills?.includes('新人')?1:0)}[s.rank]||0)+(s.close?2:0)+(s.skills?.includes('ドリバ')?1:0)+(s.skills?.includes('鉄板')?1:0)+(s.skills?.includes('仕込み')?1:0)-(s.skills?.includes('新人')?1:0)}
+function score(s){return (s.employment==='社員'?5:0)+({A:5,B:4,C:3,D:2,E:1}[s.rank]||0)+(s.close?2:0)+(s.skills?.includes('ドリバ締め')?2:0)+(s.skills?.includes('ドリバ')?1:0)+(s.skills?.includes('鉄板')?1:0)+(s.skills?.includes('仕込み')?1:0)-(s.skills?.includes('新人')?1:0)}
 function assign(k,idx,d,used,s,labels=[]){
   if(used.has(s.id)||streak(s.id,idx)>=Number(s.max||5)) return false;
   let a=patterns(s,d).filter(p=>allowed(s,d,p));
