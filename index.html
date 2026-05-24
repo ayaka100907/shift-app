@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>1人管理用シフト生成アプリ v27</title>
+<title>1人管理用シフト生成アプリ v28</title>
 <style>
 :root{--a:#00a6a6;--b:#76c7c9;--s:#e8f8f8;--l:#dceced;--t:#1f2a2c;--m:#6e7f82;--bg:#f7fbfb}
 *{box-sizing:border-box}
@@ -183,10 +183,14 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 .eventBox.open .eventMore{display:block!important}
 .eventMore{min-width:58px}
 
+
+/* v28: event extra selector removed */
+.eventMore,.eventExtraSelect{display:none!important}
+
 </style>
 </head>
 <body>
-<header><h1>1人管理用シフト生成アプリ v27</h1><div class="sub">イベント人数選択 表示修正版</div></header>
+<header><h1>1人管理用シフト生成アプリ v28</h1><div class="sub">イベント人数選択削除・バイト1名追加対応版</div></header>
 
 <main>
 <section class="card">
@@ -257,7 +261,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 <div id="preview" class="modal hide"><div class="inner"><div class="mh"><div><b>月間シフト プレビュー</b><div class="note">月間で選んでいるホール/調理場だけ表示します。</div></div><div class="row"><button onclick="window.print()">印刷</button><button class="sec" onclick="closePreview()">閉じる</button></div></div><div id="sheet" class="print"></div></div></div>
 
 <script>
-const storeKey='shift_v27_single_manager';
+const storeKey='shift_v28_single_manager';
 let staff=[
 {id:'a',name:'a',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:11,be:20,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
 {id:'b',name:'b',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
@@ -334,33 +338,19 @@ function showPanel(name){
   if(name==='Staff') renderStaff();
 }
 function eventObj(k){
-  if(typeof events[k]==='string') events[k]={time:'',memo:events[k],extra:1};
-  events[k]??={time:'',memo:'',extra:1};
-  if(events[k].extra===undefined) events[k].extra=1;
+  if(typeof events[k]==='string') events[k]={time:'',memo:events[k]};
+  events[k]??={time:'',memo:''};
   return events[k];
 }
 function setEventTime(k,v){eventObj(k).time=toHalfWidth(String(v||''));quickSave();renderAll()}
 function setEventMemo(k,v){eventObj(k).memo=toHalfWidth(String(v||''));quickSave();renderAll()}
-function setEventExtra(k,v){eventObj(k).extra=Number(v||1);quickSave();renderAll()}
 function toHalfWidth(str){return String(str||'').replace(/[！-～]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0)).replace(/　/g,' ')}
 function esc(s){return String(s||'').replace(/"/g,'&quot;')}
-function toggleEventMore(el){
-  let box=el.closest('.eventBox');
-  if(!box) return;
-  document.querySelectorAll('.eventBox.open').forEach(b=>{if(b!==box)b.classList.remove('open')});
-  box.classList.toggle('open');
-}
-function keepEventMoreOpen(el){
-  let box=el.closest('.eventBox');
-  if(box) box.classList.add('open');
-}
-
 function eventRowHtml(){
   let opts=['','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23'];
-  let nums=[1,2,3,4,5,6,7,8,9,10];
   return '<tr><th class="eventHead">イベント</th>'+dates.map(d=>{
     let k=ymd(d), ev=eventObj(k);
-    return `<th class="eventHead"><div class="eventBox"><select class="eventTime" onclick="toggleEventMore(this)" onfocus="keepEventMoreOpen(this)" onchange="setEventTime('${k}',this.value)">${opts.map(o=>`<option value="${o}" ${String(ev.time)===String(o)?'selected':''}>${o?o+'時':'なし'}</option>`).join('')}</select><input class="eventMemo" value="${esc(ev.memo)}" placeholder="メモ" onchange="setEventMemo('${k}',this.value)"><span class="eventMore" onclick="keepEventMoreOpen(this)"><select class="eventExtraSelect" onclick="keepEventMoreOpen(this)" onfocus="keepEventMoreOpen(this)" onchange="setEventExtra('${k}',this.value)">${nums.map(n=>`<option value="${n}" ${Number(ev.extra)===n?'selected':''}>-${n}人</option>`).join('')}</select></span></div></th>`;
+    return `<th class="eventHead"><div class="eventBox"><select class="eventTime" onchange="setEventTime('${k}',this.value)">${opts.map(o=>`<option value="${o}" ${String(ev.time)===String(o)?'selected':''}>${o?o+'時':'なし'}</option>`).join('')}</select><input class="eventMemo" value="${esc(ev.memo)}" placeholder="メモ" onchange="setEventMemo('${k}',this.value)"></div></th>`;
   }).join('')+'</tr>';
 }
 function reqObj(id,k){requests[id]??={};requests[id][k]??={m:'',h:'17',d:'from'};return requests[id][k]}
@@ -645,8 +635,11 @@ function eventExtraSlots(d){
   let k=ymd(d);
   let ev=eventObj(k);
   let t=Number(ev.time||0);
-  if(!t) return [];
-  let extra=Number(ev.extra||1);
+  let hasEventName=String(ev.memo||'').trim().length>0;
+  if(!t || !hasEventName) return [];
+  // 時間＋イベント名が入っている時は、社員が1人抜ける想定。
+  // その時間から1〜2時間、バイトを必ず+1以上追加する。
+  let extra=1;
   let end=Math.min(t+2, closeHour(d));
   if(end<=t) end=t+1;
   return [[t,end,extra]];
