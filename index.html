@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>1人管理用シフト生成アプリ v36</title>
+<title>1人管理用シフト生成アプリ v37</title>
 <style>
 :root{--a:#00a6a6;--b:#76c7c9;--s:#e8f8f8;--l:#dceced;--t:#1f2a2c;--m:#6e7f82;--bg:#f7fbfb}
 *{box-sizing:border-box}
@@ -202,7 +202,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 </style>
 </head>
 <body>
-<header><h1>1人管理用シフト生成アプリ v36</h1><div class="sub">反映確認修正版・社員月8休み補正強化版</div></header>
+<header><h1>1人管理用シフト生成アプリ v37</h1><div class="sub">締め3人/社員締め・最低頭数・調理場候補対応版</div></header>
 
 <main>
 <section class="card">
@@ -277,7 +277,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 <div id="preview" class="modal hide"><div class="inner"><div class="mh"><div><b>月間シフト プレビュー</b><div class="note">月間で選んでいるホール/調理場だけ表示します。</div></div><div class="row"><button onclick="window.print()">印刷</button><button class="sec" onclick="closePreview()">閉じる</button></div></div><div id="sheet" class="print"></div></div></div>
 
 <script>
-const storeKey='shift_v36_single_manager';
+const storeKey='shift_v37_single_manager';
 let staff=[
 {id:'a',name:'a',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:11,be:20,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
 {id:'b',name:'b',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
@@ -304,6 +304,22 @@ const ymd=d=>d.toISOString().slice(0,10);
 const wd=d=>'日月火水木金土'[d.getDay()];
 const isWeekend=d=>d.getDay()===0||d.getDay()===6;
 
+
+
+function hasKitchenSkill(s){
+  return !!(s.skills?.includes('串打ち') || s.skills?.includes('仕込み') || s.skills?.includes('鉄板'));
+}
+function candidatePoolForRole(role){
+  if(role==='調理場'){
+    return staff.filter(s=>s.role==='調理場' || hasKitchenSkill(s));
+  }
+  return staff.filter(s=>s.role===role);
+}
+function canHelpKitchenAt(s,p){
+  if(s.role==='調理場') return true;
+  if(!hasKitchenSkill(s)) return false;
+  return p[2] <= 17; // ホール担当の調理場ヘルプは基本17時前
+}
 
 function staffCategory(s){
   if(s.category) return s.category;
@@ -680,6 +696,30 @@ function coverageScoped(k,n,poolAll){
   },0)
 }
 function coversSlot(p,n){return p[1]<n[1]&&p[2]>n[0]}
+
+function roleHeadCount(k,n,poolAll){
+  let ids=new Set(poolAll.map(s=>s.id));
+  return Object.entries(schedule[k]||{}).reduce((sum,[id,p])=>{
+    if(!ids.has(id)) return sum;
+    return (p.start<n[1]&&p.end>n[0]) ? sum+1 : sum;
+  },0);
+}
+function slotSatisfied(k,n,poolAll){
+  return roleHeadCount(k,n,poolAll) >= n[2] && roleCoverage(k,n,poolAll) >= n[2];
+}
+function closingWorkersFor(k,d,role='ホール'){
+  let close=closeHour(d);
+  return staff.filter(s=>s.role===role && schedule[k]?.[s.id]?.end>=close);
+}
+function closingRequirementOk(k,d){
+  let closers=closingWorkersFor(k,d,'ホール');
+  if(closers.length<3) return false;
+  if(!closers.some(s=>s.employment==='社員')) return false;
+  if(!closers.some(s=>s.skills?.includes('レジ締め'))) return false;
+  if(!closers.some(s=>s.skills?.includes('ドリバ締め'))) return false;
+  return true;
+}
+
 function roleCoverage(k,n,poolAll){
   let ids=new Set(poolAll.map(s=>s.id));
   return Object.entries(schedule[k]||{}).reduce((sum,[id,p])=>{
@@ -714,7 +754,8 @@ function turnoverPatternScore(p,d,s,n){
 function canRemoveWithoutBreaking(k,d,poolAll,id){
   let backup=schedule[k][id];
   delete schedule[k][id];
-  let ok=needs(d).every(n=>roleCoverage(k,n,poolAll)>=n[2]);
+  let ok=needs(d).every(n=>slotSatisfied(k,n,poolAll));
+  if(backup?.end>=closeHour(d)) ok = ok && closingRequirementOk(k,d);
   schedule[k][id]=backup;
   return ok;
 }
@@ -765,6 +806,7 @@ function chooseBestForSlot(k,idx,d,used,poolAll,n){
       if(select<=-9999) continue;
       let ps=patternSetForSlot(s,d,useOther).filter(p=>allowed(s,d,p)&&coversSlot(p,n)&&employeeHardLimitOk(s,p,idx));
       for(let p of ps){
+        if(poolAll.some(x=>x.role==='調理場') && !canHelpKitchenAt(s,p)) continue;
         let tScore=turnoverPatternScore(p,d,s,n);
         let pair=0;
         let strongExists=slotHasStrong(k,n,poolAll);
@@ -784,52 +826,25 @@ function chooseBestForSlot(k,idx,d,used,poolAll,n){
 function trimOverflow(k,poolAll,d){
   let guard=0;
   while(guard++<30){
-    let over=needs(d).find(n=>roleCoverage(k,n,poolAll)>n[3]);
+    let over=needs(d).find(n=>roleHeadCount(k,n,poolAll)>n[3] && roleCoverage(k,n,poolAll)>n[2]);
     if(!over) break;
     let ids=new Set(poolAll.map(s=>s.id));
     let workers=Object.keys(schedule[k]||{}).filter(id=>ids.has(id));
     let idx=dates.findIndex(x=>ymd(x)===k);
     let removable=workers.map(id=>{
       let s=staff.find(x=>x.id===id), p=schedule[k][id];
-      let avail=availabilityCount(s);
-      let scarceProtect=scarceScore(s)*30; // 出勤可能日が少ない人は外しにくくする
-      let nearStreak=streak(id,idx)>=4 ? 500 : 0; // 6連勤に近い人は外す
-      let middleRank=midRankRestScore(s); // 評価真ん中を外しやすくする
+      let scarceProtect=scarceScore(s)*30;
+      let nearStreak=streak(id,idx)>=4 ? 500 : 0;
+      let middleRank=midRankRestScore(s);
+      let earlyLeave=s.employment!=='社員' ? Math.max(0,20-p.start)*2 : -100;
       let coversOver=(p.start<over[1]&&p.end>over[0])?1:0;
-      return {
-        id,
-        removeScore:coversOver*1000 + nearStreak + middleRank - scarceProtect
-      };
-    }).filter(x=>schedule[k][x.id].start<over[1]&&schedule[k][x.id].end>over[0]);
+      return {id,removeScore:coversOver*1000 + nearStreak + middleRank + earlyLeave - scarceProtect - rankScore(s)};
+    }).filter(x=>schedule[k][x.id].start<over[1]&&schedule[k][x.id].end>over[0]&&canRemoveWithoutBreaking(k,d,poolAll,x.id));
     if(!removable.length) break;
     removable.sort((a,b)=>b.removeScore-a.removeScore);
     delete schedule[k][removable[0].id];
   }
 }
-
-function hasClosingSkillAt(k,skill,close){
-  return staff.some(s=>s.skills?.includes(skill) && schedule[k]?.[s.id]?.end>=close);
-}
-function ensureClosingStaff(k,idx,d,used,poolAll,skill){
-  let setupOk=staff.some(s=>s.role==='ホール'&&(s.set||s.skills?.includes('セッティング'))&&dayObj[s.id]?.start<=9&&dayObj[s.id]?.end>=11);
-    if(!setupOk) w.push(`${label}：9時〜11時のセッティング担当がいません`);
-    let close=closeHour(d);
-  if(hasClosingSkillAt(k,skill,close)) return true;
-  let candidates=[];
-  for(let s of poolAll){
-    if(!s.skills?.includes(skill)) continue;
-    if(used.has(s.id)) continue;
-    if(streak(s.id,idx)>=Number(s.max||5)) continue;
-    let ps=patterns(s,d).filter(p=>allowed(s,d,p)&&p.end>=close);
-    for(let p of ps) candidates.push({s,p,score:slotSelectScore(s,idx)});
-  }
-  candidates.sort((a,b)=>b.score-a.score || a.p[1]-b.p[1]);
-  if(!candidates.length) return false;
-  assignPattern(k,idx,d,used,candidates[0].s,candidates[0].p);
-  return true;
-}
-
-
 function eventExtraSlots(d){
   let k=ymd(d);
   let ev=eventObj(k);
@@ -920,7 +935,7 @@ function addOneCloserV33(k,idx,d,used,poolAll,filterFn){
       for(let p of ps){
         let sc=slotSelectScore(s,idx);
         if(typeof turnoverPatternScore==='function') sc+=turnoverPatternScore(p,d,s,[20,close,3,4,'ラスト']);
-        candidates.push({s,p,score:sc + (useOther?-120:0)});
+        candidates.push({s,p,score:sc + (useOther?-140:0)});
       }
     }
     candidates.sort((a,b)=>b.score-a.score || a.p[1]-b.p[1]);
@@ -932,18 +947,22 @@ function addOneCloserV33(k,idx,d,used,poolAll,filterFn){
   return true;
 }
 function ensureClosingV33(k,idx,d,used,poolAll){
+  // 締め3人必須。中にレジ締め・ドリバ締め・社員を最低1人含める。
   if(!hasClosingSkillV33(k,'レジ締め',d)){
     addOneCloserV33(k,idx,d,used,poolAll,s=>s.skills?.includes('レジ締め'));
   }
   if(!hasClosingSkillV33(k,'ドリバ締め',d)){
     addOneCloserV33(k,idx,d,used,poolAll,s=>s.skills?.includes('ドリバ締め'));
   }
+  let close=closeHour(d);
+  if(!staff.some(s=>s.role==='ホール' && s.employment==='社員' && schedule[k]?.[s.id]?.end>=close)){
+    addOneCloserV33(k,idx,d,used,poolAll,s=>s.employment==='社員');
+  }
   let guard=0;
-  while(closingCountV33(k,'ホール',d)<3 && guard++<8){
+  while(!closingRequirementOk(k,d) && guard++<12){
     if(!addOneCloserV33(k,idx,d,used,poolAll,null)) break;
   }
 }
-
 
 function targetEmployeeWorkDays(){
   return Math.max(0, dates.length-8);
@@ -965,9 +984,27 @@ function bestEmployeeFillPattern(s,d,idx){
   return null;
 }
 function ensureEmployeesExactEightRests(role){
-  // 「必ず月8休み」に近づける最終補正。希望休や週40hで不可能な場合は警告に残す。
+  // 「必ず月8休み」に近づける最終補正。希望休・締め・最低人数で不可能な場合は警告に残す。
   let emps=staff.filter(s=>s.role===role && s.employment==='社員');
   let target=targetEmployeeWorkDays();
+
+  emps.forEach(s=>{
+    let guard=0;
+    while(monthlyWorkDaysFor(s.id)>target && guard++<dates.length){
+      let best=null;
+      for(let idx=0; idx<dates.length; idx++){
+        let d=dates[idx], k=ymd(d);
+        if(!schedule[k]?.[s.id]) continue;
+        if(!canRemoveWithoutBreaking(k,d,candidatePoolForRole(role),s.id)) continue;
+        let p=schedule[k][s.id];
+        let score=(p.end>=closeHour(d)?-300:0) + (p.start===9?80:0) + Math.max(0,20-p.start);
+        if(!best || score>best.score) best={k,score};
+      }
+      if(!best) break;
+      delete schedule[best.k][s.id];
+    }
+  });
+
   emps.forEach(s=>{
     let guard=0;
     while(monthlyWorkDaysFor(s.id)<target && guard++<dates.length){
@@ -977,8 +1014,10 @@ function ensureEmployeesExactEightRests(role){
         if(schedule[k]?.[s.id]) continue;
         let p=bestEmployeeFillPattern(s,d,idx);
         if(!p) continue;
-        let shortage=needs(d).reduce((m,n)=>m+Math.max(0,n[2]-roleCoverage(k,n,staff.filter(x=>x.role===role))),0);
-        let score=shortage*30 + employeeBalanceBonus(s,idx) - weekScheduledHoursFor(s.id,idx)*0.2;
+        let pool=candidatePoolForRole(role);
+        let shortage=needs(d).reduce((m,n)=>m+Math.max(0,n[2]-roleHeadCount(k,n,pool))+Math.max(0,n[2]-roleCoverage(k,n,pool)),0);
+        let closeNeed=closingRequirementOk(k,d)?0:80;
+        let score=shortage*30 + closeNeed + employeeBalanceBonus(s,idx) - weekScheduledHoursFor(s.id,idx)*0.2;
         if(!best || score>best.score) best={idx,d,k,p,score};
       }
       if(!best) break;
@@ -987,10 +1026,9 @@ function ensureEmployeesExactEightRests(role){
     }
   });
 }
-
 function autoMake(role){
   role = role || view.month || 'ホール';
-  let poolAll = staff.filter(s=>s.role===role);
+  let poolAll = candidatePoolForRole(role);
   dates.forEach((d,idx)=>{
     let k=ymd(d); schedule[k]??={}; let used=new Set();
     poolAll.forEach(s=>{ if(schedule[k]) delete schedule[k][s.id]; });
@@ -1030,7 +1068,7 @@ ensureClosingV33(k,idx,d,used,poolAll);
 
     needs(d).forEach(n=>{
       let safe=0;
-      while(roleCoverage(k,n,poolAll)<n[2] && safe++<40){
+      while(!slotSatisfied(k,n,poolAll) && safe++<50){
         let best=chooseBestForSlot(k,idx,d,used,poolAll,n);
         if(!best) break;
         assignPattern(k,idx,d,used,best.s,best.p);
@@ -1039,6 +1077,7 @@ ensureClosingV33(k,idx,d,used,poolAll);
 
     ensureDailyTotal(k,idx,d,used,poolAll);
     trimOverflow(k,poolAll,d);
+    ensureClosingV33(k,idx,d,used,poolAll); // final
     rotateEarlyLeavers(k,d,poolAll);
   });
   ensureEmployeesExactEightRests(role);
@@ -1163,6 +1202,10 @@ function renderWarnings(){
     let targetMin=isWeekend(d)?7:7, targetMax=isWeekend(d)?9:8;
     if(hallWorkers.length<targetMin) w.push(`${label}：ホール人数が目安より少ないです（${hallWorkers.length}人）`);
     if(hallWorkers.length>targetMax) w.push(`${label}：ホール人数が目安より多いです（${hallWorkers.length}人）`);
+    needs(d).forEach(n=>{
+      let pool=candidatePoolForRole('ホール');
+      if(roleHeadCount(k,n,pool)<n[2]) w.push(`${label}：${n[0]}〜${n[1]}時の実人数が最低人数未満です`);
+    });
 
     ['ホール','調理場'].forEach(role=>{
       let empCount=staff.filter(s=>s.role===role&&s.employment==='社員'&&dayObj[s.id]).length;
@@ -1173,6 +1216,7 @@ function renderWarnings(){
     let close=closeHour(d);
     let closeWorkers=staff.filter(s=>s.role==='ホール'&&dayObj[s.id]?.end>=close);
     if(closeWorkers.length<3) w.push(`${label}：締めが3人未満です`);
+    if(!closeWorkers.some(s=>s.employment==='社員')) w.push(`${label}：締めに社員がいません`);
     if(!staff.some(s=>s.role==='ホール'&&s.skills?.includes('レジ締め')&&dayObj[s.id]?.end>=close)) w.push(`${label}：レジ締めがいません`);
     if(!staff.some(s=>s.role==='ホール'&&s.skills?.includes('ドリバ締め')&&dayObj[s.id]?.end>=close)) w.push(`${label}：ドリバ締めがいません`);
 
