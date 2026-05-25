@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>1人管理用シフト生成アプリ v40</title>
+<title>1人管理用シフト生成アプリ v44</title>
 <style>
 :root{--a:#00a6a6;--b:#76c7c9;--s:#e8f8f8;--l:#dceced;--t:#1f2a2c;--m:#6e7f82;--bg:#f7fbfb}
 *{box-sizing:border-box}
@@ -202,7 +202,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 </style>
 </head>
 <body>
-<header><h1>1人管理用シフト生成アプリ v40</h1><div class="sub">自動生成実行テスト済み・関数漏れ修正版</div></header>
+<header><h1>1人管理用シフト生成アプリ v44</h1><div class="sub">閉店3人固定・重複選択防止版</div></header>
 
 <main>
 <section class="card">
@@ -277,7 +277,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 <div id="preview" class="modal hide"><div class="inner"><div class="mh"><div><b>月間シフト プレビュー</b><div class="note">月間で選んでいるホール/調理場だけ表示します。</div></div><div class="row"><button onclick="window.print()">印刷</button><button class="sec" onclick="closePreview()">閉じる</button></div></div><div id="sheet" class="print"></div></div></div>
 
 <script>
-const storeKey='shift_v40_single_manager';
+const storeKey='shift_v44_single_manager';
 let staff=[
 {id:'a',name:'a',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:11,be:20,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
 {id:'b',name:'b',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
@@ -926,55 +926,90 @@ function hasClosingSkillV33(k,skill,d){
   let close=closeHour(d);
   return staff.some(s=>s.role==='ホール' && s.skills?.includes(skill) && schedule[k]?.[s.id]?.end>=close);
 }
-function addOneCloserV33(k,idx,d,used,poolAll,filterFn){
+function bestClosingPatternForV44(s,d,idx){
   let close=closeHour(d);
-  function collect(useOther){
-    let candidates=[];
-    for(let s of poolAll){
-      if(used.has(s.id)) continue;
-      if(streak(s.id,idx)>=Number(s.max||5)) continue;
-      if(filterFn && !filterFn(s)) continue;
-      let ps=(useOther?otherPatterns(s,d):mainPatterns(s,d)).filter(p=>allowed(s,d,p)&&p.end>=close&&employeeHardLimitOk(s,p,idx));
-      for(let p of ps){
-        let sc=slotSelectScore(s,idx);
-        if(typeof turnoverPatternScore==='function') sc+=turnoverPatternScore(p,d,s,[20,close,3,4,'ラスト']);
-        candidates.push({s,p,score:sc + (useOther?-140:0)});
-      }
+  for(let useOther of [false,true]){
+    let ps=(useOther?otherPatterns(s,d):mainPatterns(s,d))
+      .filter(p=>{
+        if(p[1]===9) return false;
+        if(!allowed(s,d,p)) return false;
+        if(p[2] < close) return false;
+        if(patternDuration(p)>9) return false;
+        // 閉店は絶対条件なので、社員月8休み補正より優先。
+        // ただし希望休/出勤可否と9時間上限は守る。
+        return true;
+      });
+    if(ps.length){
+      ps.sort((a,b)=>{
+        let durA=a[2]-a[1], durB=b[2]-b[1];
+        let scoreA=(a[1]===15?30:0)+(a[1]===17?25:0)+(a[1]===18?20:0)-Math.abs(durA-7);
+        let scoreB=(b[1]===15?30:0)+(b[1]===17?25:0)+(b[1]===18?20:0)-Math.abs(durB-7);
+        return scoreB-scoreA || b[1]-a[1];
+      });
+      return ps[0];
     }
-    candidates.sort((a,b)=>b.score-a.score || a.p[1]-b.p[1]);
-    return candidates[0]||null;
   }
-  let best = collect(false) || collect(true);
-  if(!best) return false;
-  assignPattern(k,idx,d,used,best.s,best.p);
+  return null;
+}
+function assignOrExtendCloserV44(k,idx,d,used,poolAll,filterFn,needNewCloser=false){
+  let close=closeHour(d);
+  let currentCloseIds=new Set(closingWorkersFor(k,d,'ホール').map(s=>s.id));
+  let candidates=[];
+  for(let s of poolAll){
+    if(filterFn && !filterFn(s)) continue;
+    if(needNewCloser && currentCloseIds.has(s.id)) continue; // 3人目追加では既存締めを選ばない
+    let p=bestClosingPatternForV44(s,d,idx);
+    if(!p) continue;
+
+    let already=schedule[k]?.[s.id];
+    let upgrade=already ? 80 : 0;
+    let skillBonus=(s.skills?.includes('レジ締め')?25:0)+(s.skills?.includes('ドリバ締め')?25:0);
+    let employeeBonus=s.employment==='社員'?35:0;
+    let score=slotSelectScore(s,idx)+upgrade+skillBonus+employeeBonus;
+    candidates.push({s,p,score});
+  }
+  candidates.sort((a,b)=>b.score-a.score || a.p[1]-b.p[1]);
+  if(!candidates.length) return false;
+  let best=candidates[0];
+  schedule[k]??={};
+  schedule[k][best.s.id]={label:best.p[0],start:best.p[1],end:best.p[2]};
+  used.add(best.s.id);
   return true;
 }
+function addOneCloserV33(k,idx,d,used,poolAll,filterFn){
+  return assignOrExtendCloserV44(k,idx,d,used,poolAll,filterFn,false);
+}
 function ensureClosingV33(k,idx,d,used,poolAll){
-  // 締め3人必須。中にレジ締め・ドリバ締め・社員を最低1人含める。
-  if(!hasClosingSkillV33(k,'レジ締め',d)){
-    addOneCloserV33(k,idx,d,used,poolAll,s=>s.skills?.includes('レジ締め'));
-  }
-  if(!hasClosingSkillV33(k,'ドリバ締め',d)){
-    addOneCloserV33(k,idx,d,used,poolAll,s=>s.skills?.includes('ドリバ締め'));
-  }
+  // 閉店時は3人固定。中にレジ締め・ドリバ締め・社員を最低1人含める。
   let close=closeHour(d);
-  if(!staff.some(s=>s.role==='ホール' && s.employment==='社員' && schedule[k]?.[s.id]?.end>=close)){
-    addOneCloserV33(k,idx,d,used,poolAll,s=>s.employment==='社員');
+
+  if(!staff.some(s=>s.role==='ホール' && s.skills?.includes('レジ締め') && schedule[k]?.[s.id]?.end>=close)){
+    assignOrExtendCloserV44(k,idx,d,used,poolAll,s=>s.skills?.includes('レジ締め'),false);
   }
+  if(!staff.some(s=>s.role==='ホール' && s.skills?.includes('ドリバ締め') && schedule[k]?.[s.id]?.end>=close)){
+    assignOrExtendCloserV44(k,idx,d,used,poolAll,s=>s.skills?.includes('ドリバ締め'),false);
+  }
+  if(!staff.some(s=>s.role==='ホール' && s.employment==='社員' && schedule[k]?.[s.id]?.end>=close)){
+    assignOrExtendCloserV44(k,idx,d,used,poolAll,s=>s.employment==='社員',false);
+  }
+
   let guard=0;
-  while(!closingRequirementOk(k,d) && guard++<12){
-    if(!addOneCloserV33(k,idx,d,used,poolAll,null)) break;
+  while(closingWorkersFor(k,d,'ホール').length<3 && guard++<12){
+    if(!assignOrExtendCloserV44(k,idx,d,used,poolAll,null,true)) break;
   }
 }
-
 function targetEmployeeWorkDays(){
   return Math.max(0, dates.length-8);
 }
 function bestEmployeeFillPattern(s,d,idx){
-  // 社員の月8休みちょうど補正用。メイン時間を最優先、その他時間はメイン候補がない時だけ。
+  // 社員の月8休み補正用。メイン時間を最優先、その他時間はメイン候補がない時だけ。
+  let k=ymd(d);
   for(let useOther of [false,true]){
     let ps=(useOther?otherPatterns(s,d):mainPatterns(s,d))
-      .filter(p=>allowed(s,d,p)&&employeeHardLimitOk(s,p,idx));
+      .filter(p=>{
+        if(p[1]===9 && !canUseNinePatternFor(s,k)) return false;
+        return allowed(s,d,p)&&employeeHardLimitOk(s,p,idx);
+      });
     if(ps.length){
       ps.sort((a,b)=>{
         let scoreA=(a[2]-a[1]===9?50:0)+(a[2]-a[1]>=7?20:0)-Math.abs((a[2]-a[1])-9)*5;
@@ -1014,6 +1049,48 @@ function ensureEmployeesExactEightRests(role){
     }
   });
 }
+
+function isSetupStaff(s){
+  return !!(s && (s.set || s.skills?.includes('セッティング')));
+}
+function nineStartIds(k){
+  return Object.entries(schedule[k]||{}).filter(([id,p])=>{
+    let s=staff.find(x=>x.id===id);
+    return s?.role==='ホール' && p.start===9;
+  }).map(([id])=>id);
+}
+function setupStaffAtNineIds(k){
+  return nineStartIds(k).filter(id=>isSetupStaff(staff.find(s=>s.id===id)));
+}
+function canUseNinePatternFor(s,k){
+  // 9時入りはセッティング枠だけ。セッティング担当以外は9時にしない。
+  if(!isSetupStaff(s)) return false;
+  // すでに9時入りがいるなら追加しない
+  return nineStartIds(k).length===0;
+}
+function enforceSingleSetupV41(k,d,role='ホール'){
+  // 9時入りが複数いたら、セッティング担当1人だけ残す。
+  let ids=nineStartIds(k);
+  if(ids.length<=1) return;
+
+  ids.sort((a,b)=>{
+    let sa=staff.find(s=>s.id===a), sb=staff.find(s=>s.id===b);
+    let pa=schedule[k][a], pb=schedule[k][b];
+    let setupA=isSetupStaff(sa)?1000:0, setupB=isSetupStaff(sb)?1000:0;
+    let shortA=(pa.end===13?300:pa.end===15?200:pa.end===17?50:0);
+    let shortB=(pb.end===13?300:pb.end===15?200:pb.end===17?50:0);
+    return (setupB+shortB)-(setupA+shortA);
+  });
+  let keep=ids[0];
+  let pool=candidatePoolForRole(role);
+  ids.slice(1).forEach(id=>{
+    let backup=schedule[k][id];
+    delete schedule[k][id];
+    let ok=needs(d).every(n=>slotSatisfied(k,n,pool)) && setupRequirementOkSafe(k,d);
+    if(!ok) schedule[k][id]=backup;
+  });
+}
+
 function autoMake(role){
   role = role || view.month || 'ホール';
   let poolAll = candidatePoolForRole(role);
@@ -1051,7 +1128,6 @@ function autoMake(role){
     }
 
     ensureClosingV33(k,idx,d,used,poolAll);
-ensureClosingV33(k,idx,d,used,poolAll);
     ensureEventExtras(k,idx,d,used,poolAll);
 
     needs(d).forEach(n=>{
@@ -1066,9 +1142,12 @@ ensureClosingV33(k,idx,d,used,poolAll);
     ensureDailyTotal(k,idx,d,used,poolAll);
     trimOverflow(k,poolAll,d);
     ensureClosingV33(k,idx,d,used,poolAll); // final
+    enforceSingleSetupV41(k,d,role); // daily single setup
     rotateEarlyLeavers(k,d,poolAll);
   });
   ensureEmployeesExactEightRests(role);
+  dates.forEach(d=>enforceSingleSetupV41(ymd(d),d,role));
+  dates.forEach((d,idx)=>{let k=ymd(d); let used=new Set(Object.keys(schedule[k]||{})); ensureClosingV33(k,idx,d,used,candidatePoolForRole(role)); enforceSingleSetupV41(k,d,role);});
   quickSave(); renderAll();
   alert(role==='ホール' ? 'ホールの自動生成をしました' : '調理場は必要人数ルール未設定のため、今は自動生成していません');
 }
@@ -1206,7 +1285,7 @@ function renderWarnings(){
     let targetMin=isWeekend(d)?7:7, targetMax=isWeekend(d)?9:8;
     if(hallWorkers.length<targetMin) w.push(`${label}：ホール人数が目安より少ないです（${hallWorkers.length}人）`);
     if(hallWorkers.length>targetMax) w.push(`${label}：ホール人数が目安より多いです（${hallWorkers.length}人）`);
-    if(countNineStartSafe(k)>1) w.push(`${label}：9時入りが複数います`);
+    if(countNineStartSafe(k)>1) w.push(`${label}：9時入りが複数います（セッティングは1人固定）`);
     needs(d).forEach(n=>{
       let pool=candidatePoolForRole('ホール');
       if(roleHeadCount(k,n,pool)<n[2]) w.push(`${label}：${n[0]}〜${n[1]}時の実人数が最低人数未満です`);
