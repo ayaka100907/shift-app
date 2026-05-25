@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>1人管理用シフト生成アプリ v51</title>
+<title>1人管理用シフト生成アプリ v53</title>
 <style>
 :root{--a:#00a6a6;--b:#76c7c9;--s:#e8f8f8;--l:#dceced;--t:#1f2a2c;--m:#6e7f82;--bg:#f7fbfb}
 *{box-sizing:border-box}
@@ -202,7 +202,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 </style>
 </head>
 <body>
-<header><h1>1人管理用シフト生成アプリ v51</h1><div class="sub">詳細読み取り＋入れすぎ削り安全版</div></header>
+<header><h1>1人管理用シフト生成アプリ v53</h1><div class="sub">最低実人数優先・戦力換算調整版</div></header>
 
 <main>
 <section class="card">
@@ -277,7 +277,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 <div id="preview" class="modal hide"><div class="inner"><div class="mh"><div><b>月間シフト プレビュー</b><div class="note">月間で選んでいるホール/調理場だけ表示します。</div></div><div class="row"><button onclick="window.print()">印刷</button><button class="sec" onclick="closePreview()">閉じる</button></div></div><div id="sheet" class="print"></div></div></div>
 
 <script>
-const storeKey='shift_v51_single_manager';
+const storeKey='shift_v53_single_manager';
 let staff=[
 {id:'a',name:'a',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:11,be:20,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
 {id:'b',name:'b',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
@@ -1193,7 +1193,7 @@ function setupV50(k,d,idx,pool){
     for(let x of patternPoolV50(s,d,idx,k,{setup:true,preferMain:true})){
       let p=x.p;
       let pref=(p[2]===13?300:p[2]===15?240:p[2]===17?50:0);
-      choices.push({s,p,score:pref + slotSelectScore(s,idx) + (x.useOther?-120:0)});
+      choices.push({s,p,score:pref + slotSelectScore(s,idx) + (x.useOther?-240:170) + (s.category==='バイト 早番'?30:0)});
     }
   }
   choices.sort((a,b)=>b.score-a.score);
@@ -1204,11 +1204,15 @@ function chooseCloseV50(k,d,idx,pool,filterFn,excludeIds=new Set()){
   for(let s of pool){
     if(filterFn && !filterFn(s)) continue;
     if(excludeIds.has(s.id)) continue;
-    for(let x of patternPoolV50(s,d,idx,k,{close:true,preferMain:true})){
+    for(let x of patternPoolV50(s,d,idx,k,{close:true,preferMain:false})){
       let p=x.p;
       let already=schedule[k]?.[s.id]?80:0;
-      let sc=already + slotSelectScore(s,idx) + (canRegClose(s)?25:0) + (canDrinkClose(s)?25:0) + (s.employment==='社員'?70:0) + (x.useOther?-120:0);
-      choices.push({s,p,score:sc});
+      let mainClose = !x.useOther ? 300 : 0;
+      let skill=(canRegClose(s)?25:0)+(canDrinkClose(s)?25:0);
+      let emp=s.employment==='社員'?80:0;
+      let startPref=(p[1]===13?35:p[1]===15?65:p[1]===17?60:p[1]===18?45:0);
+      let otherPenalty=x.useOther ? -240 : 0;
+      choices.push({s,p,score:mainClose + already + slotSelectScore(s,idx) + skill + emp + startPref + otherPenalty});
     }
   }
   choices.sort((a,b)=>b.score-a.score || a.p[1]-b.p[1]);
@@ -1237,22 +1241,31 @@ function closingV50(k,d,idx,pool){
   }
 }
 function slotSatisfiedV50(k,n,pool){
-  return headCountV50(k,n,pool)>=n[2] && powerV50(k,n,pool)>=n[2];
+  // 最低人数は実人数で見る。戦力換算は「最大人数側に増やすか」の調整目安。
+  return headCountV50(k,n,pool)>=n[2];
+}
+function slotNeedsStrengthBoostV53(k,n,pool){
+  return headCountV50(k,n,pool)<n[3] && powerV50(k,n,pool)<n[2];
 }
 function chooseSlotV50(k,d,idx,pool,n){
-  function collect(allowExtend=false){
+  function collect(useOtherWanted=false){
     let choices=[];
     for(let s of pool){
-      let ex=schedule[k]?.[s.id];
-      if(ex && ex.start<n[1] && ex.end>n[0]) continue;
-      if(ex && !allowExtend) continue;
-      for(let x of patternPoolV50(s,d,idx,k,{slot:n,preferMain:true})){
+      // すでに今日入っている人は原則追加しない。1日1勤務を基本にする。
+      if(schedule[k]?.[s.id]) continue;
+
+      let all=patternPoolV50(s,d,idx,k,{slot:n,preferMain:false}).filter(x=>x.useOther===useOtherWanted);
+      for(let x of all){
         let p=x.p;
-        if(ex && (p[1]>ex.start || p[2]<ex.end)) continue;
+        if(p[1]===9) continue;
+
         let train=isTrainingV50(s);
         let strongNow=pool.some(t=>coversShiftV50(k,t.id,n) && strengthV50(t)>=1);
         let pair=(train && strongNow)?35:(train?-45:0);
-        let score=slotSelectScore(s,idx)+turnoverPatternScore(p,d,s,n)+pair+(allowExtend?20:0)+(x.useOther?-120:0);
+        let mainBonus=x.useOther ? -260 : 220;
+        let slotStartBonus = p[1]===n[0] ? 95 : (Math.abs(p[1]-n[0])<=1 ? 35 : 0);
+        let durationPref = -Math.abs((p[2]-p[1])-6)*5;
+        let score=slotSelectScore(s,idx)+turnoverPatternScore(p,d,s,n)+pair+mainBonus+slotStartBonus+durationPref;
         choices.push({s,p,score});
       }
     }
@@ -1260,6 +1273,17 @@ function chooseSlotV50(k,d,idx,pool,n){
     return choices[0]||null;
   }
   return collect(false)||collect(true);
+}
+function boostWeakSlotsV53(k,d,idx,pool){
+  // 戦力不足の日は、最大人数の範囲内で1人ずつ足す。弱い子だけで固めない。
+  for(let n of needs(d)){
+    let guard=0;
+    while(slotNeedsStrengthBoostV53(k,n,pool) && guard++<3){
+      let c=chooseSlotV50(k,d,idx,pool,n);
+      if(!c) break;
+      assignV50(k,c.s,c.p);
+    }
+  }
 }
 
 function autoMake(role){
@@ -1286,6 +1310,7 @@ function autoMake(role){
       });
       closingV50(k,d,idx,pool);
     }
+    boostWeakSlotsV53(k,d,idx,pool);
   });
 
   // 社員は月8休みちょうどに寄せる。閉店/最低人数は最後に再補修。
@@ -1306,13 +1331,16 @@ function autoMake(role){
       });
       closingV50(k,d,idx,pool);
     }
+    boostWeakSlotsV53(k,d,idx,pool);
   });
 
   dates.forEach((d,idx)=>{
     let k=ymd(d), pool=candidatePoolForRole(role);
+    boostWeakSlotsV53(k,d,idx,pool);
     trimOverV51(k,d,pool);
     closingV50(k,d,idx,pool);
     setupV50(k,d,idx,pool);
+    closingV50(k,d,idx,pool); // v52 final close
   });
   quickSave(); renderAll();
   alert(role==='ホール' ? 'ホールの自動生成をしました' : '調理場は必要人数ルール未設定のため、今は自動生成していません');
@@ -1370,7 +1398,6 @@ function validateCoreRulesV50(role='ホール'){
     if(nine.length===1 && !canSetup(staff.find(s=>s.id===nine[0]))) issues.push(`${k}: セッティングスキルなし`);
     needs(d).forEach(n=>{
       if(headCountV50(k,n,pool)<n[2]) issues.push(`${k}: ${n[0]}-${n[1]}実人数不足`);
-      if(n[4]!=='セッティング' && powerV50(k,n,pool)<n[2]) issues.push(`${k}: ${n[0]}-${n[1]}戦力不足`);
       if(headCountV50(k,n,pool)>n[3]) issues.push(`${k}: ${n[0]}-${n[1]}人数過多`);
     });
     if(!closingOkV50(k,d,pool)) issues.push(`${k}: 閉店条件NG`);
