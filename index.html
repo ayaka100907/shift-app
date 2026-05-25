@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>1人管理用シフト生成アプリ v30</title>
+<title>1人管理用シフト生成アプリ v31</title>
 <style>
 :root{--a:#00a6a6;--b:#76c7c9;--s:#e8f8f8;--l:#dceced;--t:#1f2a2c;--m:#6e7f82;--bg:#f7fbfb}
 *{box-sizing:border-box}
@@ -202,7 +202,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 </style>
 </head>
 <body>
-<header><h1>1人管理用シフト生成アプリ v30</h1><div class="sub">データコピー/貼り付け・設定引き継ぎ対応版</div></header>
+<header><h1>1人管理用シフト生成アプリ v31</h1><div class="sub">入れ替わり前提・早入り早上がり生成版</div></header>
 
 <main>
 <section class="card">
@@ -277,7 +277,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 <div id="preview" class="modal hide"><div class="inner"><div class="mh"><div><b>月間シフト プレビュー</b><div class="note">月間で選んでいるホール/調理場だけ表示します。</div></div><div class="row"><button onclick="window.print()">印刷</button><button class="sec" onclick="closePreview()">閉じる</button></div></div><div id="sheet" class="print"></div></div></div>
 
 <script>
-const storeKey='shift_v30_single_manager';
+const storeKey='shift_v31_single_manager';
 let staff=[
 {id:'a',name:'a',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:11,be:20,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
 {id:'b',name:'b',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
@@ -298,8 +298,8 @@ let staff=[
 ];
 let dates=[],requests={},schedule={},actual={},events={},view={input:'ホール',month:'ホール',day:'ホール'},staffView='ホール',editing=null;
 const H=[9,10,11,12,13,14,15,16,17,18,19], skills=['セッティング','レジ締め','ドリバ','ドリバ締め','仕込み','串打ち','鉄板','新人'];
-const patWeek=[['9',9,17],['9',9,18],['11',11,20],['13',13,22],['15',15,22],['17',17,22],['18',18,22]];
-const patEnd=[['9',9,17],['9',9,18],['11',11,20],['14',14,23],['15',15,23],['17',17,23],['18',18,23]];
+const patWeek=[['9',9,17],['9',9,18],['11',11,15],['11',11,17],['11',11,18],['11',11,20],['13',13,17],['13',13,20],['13',13,22],['15',15,20],['15',15,22],['17',17,20],['17',17,22],['18',18,22]];
+const patEnd=[['9',9,17],['9',9,18],['11',11,15],['11',11,18],['11',11,20],['13',13,18],['13',13,20],['15',15,20],['15',15,23],['17',17,20],['17',17,23],['18',18,23]];
 const ymd=d=>d.toISOString().slice(0,10);
 const wd=d=>'日月火水木金土'[d.getDay()];
 const isWeekend=d=>d.getDay()===0||d.getDay()===6;
@@ -639,6 +639,54 @@ function roleCoverage(k,n,poolAll){
     return (p.start<n[1]&&p.end>n[0]) ? sum+val(s) : sum;
   },0);
 }
+
+function slotStartTimes(d){return needs(d).map(n=>n[0])}
+function nextSlotHeadAfter(d,start){
+  let heads=slotStartTimes(d).filter(h=>h>start);
+  return heads.length?heads[0]:closeHour(d);
+}
+function turnoverPatternScore(p,d,s,n){
+  let heads=slotStartTimes(d);
+  let startsAtHead=heads.includes(p[1])?20:0;
+  let nextHead=nextSlotHeadAfter(d,p[1]);
+  let earlyLeave=0;
+  if(s.employment!=='社員'){
+    if(p[2]===nextHead) earlyLeave+=35;
+    else if(heads.includes(p[2])) earlyLeave+=22;
+    else if(p[2]-p[1]<=5) earlyLeave+=18;
+  }
+  if(n[4]==='ラスト' && p[2]>=closeHour(d)) earlyLeave+=30;
+  let lengthPenalty=Math.max(0,(p[2]-p[1]-6))*4;
+  return startsAtHead + earlyLeave - lengthPenalty;
+}
+function canRemoveWithoutBreaking(k,d,poolAll,id){
+  let backup=schedule[k][id];
+  delete schedule[k][id];
+  let ok=needs(d).every(n=>roleCoverage(k,n,poolAll)>=n[2]);
+  schedule[k][id]=backup;
+  return ok;
+}
+function rotateEarlyLeavers(k,d,poolAll){
+  let range=dailyTargetRange(d);
+  let guard=0;
+  while(roleWorkerIds(k,'ホール').length>range[1] && guard++<20){
+    let workers=roleWorkerIds(k,'ホール');
+    let candidates=workers.map(id=>{
+      let s=staff.find(x=>x.id===id), p=schedule[k][id];
+      let early=s.employment!=='社員' ? Math.max(0,20-p.start)*4 : -50;
+      let middle=midRankRestScore(s);
+      return {id,score:early+middle-rankScore(s)-scarceScore(s)*20};
+    }).sort((a,b)=>b.score-a.score);
+    let removed=false;
+    for(let c of candidates){
+      if(canRemoveWithoutBreaking(k,d,poolAll,c.id)){
+        delete schedule[k][c.id]; removed=true; break;
+      }
+    }
+    if(!removed) break;
+  }
+}
+
 function chooseBestForSlot(k,idx,d,used,poolAll,n){
   function collect(useOther){
     let candidates=[];
@@ -647,7 +695,10 @@ function chooseBestForSlot(k,idx,d,used,poolAll,n){
       let select=slotSelectScore(s,idx);
       if(select<=-9999) continue;
       let ps=(useOther?otherPatterns(s,d):mainPatterns(s,d)).filter(p=>allowed(s,d,p)&&coversSlot(p,n)&&employeeHardLimitOk(s,p,idx));
-      for(let p of ps) candidates.push({s,p,score:select + (useOther?-100:0)});
+      for(let p of ps){
+        let tScore=turnoverPatternScore(p,d,s,n);
+        candidates.push({s,p,score:select + tScore + (useOther?-120:0)});
+      }
     }
     candidates.sort((a,b)=>b.score-a.score || a.p[1]-b.p[1] || a.p[2]-b.p[2]);
     return candidates[0]||null;
@@ -763,26 +814,8 @@ function ensureDailyTotal(k,idx,d,used,poolAll){
     if(!best) break;
     assignPattern(k,idx,d,used,best.s,best.p);
   }
-  safe=0;
-  while(roleWorkerIds(k,'ホール').length>range[1] && safe++<20){
-    let workers=roleWorkerIds(k,'ホール');
-    let idxDay=dates.findIndex(x=>ymd(x)===k);
-    let removable=workers.map(id=>{
-      let s=staff.find(x=>x.id===id);
-      return {id,score:midRankRestScore(s)+availabilityCount(s)-scarceScore(s)*20+(streak(id,idxDay)>=4?100:0)-rankScore(s)};
-    }).sort((a,b)=>b.score-a.score);
-    let removed=false;
-    for(let r of removable){
-      let backup=schedule[k][r.id];
-      delete schedule[k][r.id];
-      let ok=needs(d).every(n=>roleCoverage(k,n,poolAll)>=n[2]);
-      if(ok){removed=true;break}
-      schedule[k][r.id]=backup;
-    }
-    if(!removed) break;
-  }
+  rotateEarlyLeavers(k,d,poolAll);
 }
-
 function autoMake(role){
   role = role || view.month || 'ホール';
   let poolAll = staff.filter(s=>s.role===role);
@@ -820,6 +853,7 @@ function autoMake(role){
 
     ensureDailyTotal(k,idx,d,used,poolAll);
     trimOverflow(k,poolAll,d);
+    rotateEarlyLeavers(k,d,poolAll);
   });
   quickSave(); renderAll();
   alert(role==='ホール' ? 'ホールの自動生成をしました' : '調理場は必要人数ルール未設定のため、今は自動生成していません');
