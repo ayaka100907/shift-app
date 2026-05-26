@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>1人管理用シフト生成アプリ v56</title>
+<title>1人管理用シフト生成アプリ v60</title>
 <style>
 :root{--a:#00a6a6;--b:#76c7c9;--s:#e8f8f8;--l:#dceced;--t:#1f2a2c;--m:#6e7f82;--bg:#f7fbfb}
 *{box-sizing:border-box}
@@ -195,6 +195,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 .catBadge{display:inline-block;border-radius:999px;padding:2px 6px;font-size:10px;background:#eef6f6;color:#345}
 .otherModeNote{font-size:10px;color:var(--m);margin-top:2px}
 .mainModeSelect{min-width:82px;max-width:92px;flex:0 0 86px}
+.otherModeSelect{min-width:82px;max-width:92px;flex:0 0 86px}
 
 
 .dataBox{width:100%;min-height:92px;border:1px solid var(--l);border-radius:12px;padding:8px;font-size:12px}
@@ -203,7 +204,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 </style>
 </head>
 <body>
-<header><h1>1人管理用シフト生成アプリ v56</h1><div class="sub">メイン時間タイプ位置調整・その他時間表示修正版</div></header>
+<header><h1>1人管理用シフト生成アプリ v60</h1><div class="sub">社員閉店休み重複防止・固定時間保護版</div></header>
 
 <main>
 <section class="card">
@@ -278,7 +279,7 @@ thead th:first-child{background:#eafafa;z-index:4}.sat{background:#f0fbff!import
 <div id="preview" class="modal hide"><div class="inner"><div class="mh"><div><b>月間シフト プレビュー</b><div class="note">月間で選んでいるホール/調理場だけ表示します。</div></div><div class="row"><button onclick="window.print()">印刷</button><button class="sec" onclick="closePreview()">閉じる</button></div></div><div id="sheet" class="print"></div></div></div>
 
 <script>
-const storeKey='shift_v56_single_manager';
+const storeKey='shift_v60_single_manager';
 let staff=[
 {id:'a',name:'a',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:11,be:20,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
 {id:'b',name:'b',input:'off',role:'ホール',employment:'社員',rank:'A',skills:[],bs:13,be:22,os:'',oe:'',weekend:true,half:false,close:false,set:false,max:5},
@@ -346,7 +347,7 @@ function makeDates(){
   day.innerHTML=dates.map(d=>`<option value="${ymd(d)}">${d.getMonth()+1}/${d.getDate()}（${wd(d)}）</option>`).join('');
 }
 function findLatestSavedData(){
-  // v56: 前バージョンや別チャット由来の古いデータは自動では読まない。
+  // v57: 前バージョンや別チャット由来の古いデータは自動では読まない。
   // 移行は「データをコピー」→「貼り付けで読み込み」だけ。
   return null;
 }
@@ -367,7 +368,7 @@ function applyDataObject(d){
   events=d.events||{};
 }
 function loadData(){
-  // v55: 現在の保存キーだけ読む。前URL/前バージョンのデータは自動では読まない。
+  // v57: 現在の保存キーだけ読む。前URL/前バージョンのデータは自動では読まない。
   try{
     let raw=localStorage.getItem(storeKey);
     let d=raw?JSON.parse(raw):null;
@@ -1110,11 +1111,9 @@ function dayTypeOkForOtherV50(s,d){
 function rangeOkV50(s,p,useOther,d){
   if(isWeekend(d) && s.weekend===false) return false;
   if(useOther){
-    // その他時間は、開始か終了のどちらかが選ばれている時だけ候補。
-    // 両方未選択なら「メイン時間のみ」。
+    // その他時間は開始か終了のどちらかが選ばれている時だけ候補。
+    // 両方未選択ならメイン時間のみ。
     if((s.os==='' || s.os===undefined) && (s.oe==='' || s.oe===undefined)) return false;
-    // os空欄・oe=23 → メイン開始〜23
-    // os=9・oe空欄 → 9〜メイン終了
     let os = (s.os==='' || s.os===undefined) ? s.bs : s.os;
     let oe = (s.oe==='' || s.oe===undefined) ? s.be : s.oe;
     if(os==='' || oe==='' || os===undefined || oe===undefined) return false;
@@ -1123,8 +1122,83 @@ function rangeOkV50(s,p,useOther,d){
   }
   return p[1]>=Number(s.bs) && p[2]<=Number(s.be);
 }
+
+let employeeOffPlanV58={};
+function isRequestedOffV58(s,k){
+  let r=reqObj(s.id,k);
+  return r && r.m==='×';
+}
+function buildEmployeeOffPlanV58(role='ホール'){
+  employeeOffPlanV58={};
+  let emps=staff.filter(s=>s.role===role && s.employment==='社員');
+  let dayOffCounts={};
+  dates.forEach(d=>dayOffCounts[ymd(d)]=0);
+
+  function canEmployeeCloseByMain(s,d){
+    return Number(s.be)>=closeHour(d);
+  }
+  function wouldLeaveNoClosingEmployeeOff(emp,k,offsCandidate){
+    let d=dates.find(x=>ymd(x)===k);
+    if(!d) return false;
+    let closers=emps.filter(s=>canEmployeeCloseByMain(s,d));
+    if(!closers.length) return false;
+    return closers.every(s=>{
+      if(s.id===emp.id) return true;
+      let set=employeeOffPlanV58[s.id];
+      return set && set.has(k);
+    });
+  }
+  function tryAddOff(s,offs,k){
+    if(offs.has(k)) return false;
+    if((dayOffCounts[k]||0) >= Math.max(0,emps.length-1)) return false;
+    if(wouldLeaveNoClosingEmployeeOff(s,k,offs)) return false;
+    offs.add(k);
+    dayOffCounts[k]=(dayOffCounts[k]||0)+1;
+    return true;
+  }
+
+  emps.forEach((s,ei)=>{
+    let offs=new Set();
+    employeeOffPlanV58[s.id]=offs;
+
+    dates.forEach((d,idx)=>{
+      let k=ymd(d);
+      if(isRequestedOffV58(s,k)){
+        offs.add(k); dayOffCounts[k]=(dayOffCounts[k]||0)+1;
+      }
+    });
+
+    for(let pass=0; offs.size<8 && pass<5; pass++){
+      for(let idx=0; idx<dates.length && offs.size<8; idx++){
+        let k=ymd(dates[idx]);
+        if(((idx+ei+pass)%4)!==0) continue;
+        tryAddOff(s,offs,k);
+      }
+    }
+    for(let idx=0; offs.size<8 && idx<dates.length; idx++){
+      tryAddOff(s,offs,ymd(dates[idx]));
+    }
+  });
+
+  // 最終補正: 閉店できる社員が全員休みの日があれば片方を出勤へ戻す
+  dates.forEach(d=>{
+    let k=ymd(d);
+    let closers=emps.filter(s=>Number(s.be)>=closeHour(d));
+    if(closers.length && closers.every(s=>employeeOffPlanV58[s.id]?.has(k))){
+      let s=closers.sort((a,b)=>rankValueV57(b)-rankValueV57(a))[0];
+      employeeOffPlanV58[s.id].delete(k);
+      dayOffCounts[k]=Math.max(0,(dayOffCounts[k]||1)-1);
+    }
+  });
+}
+function employeePlannedOffV58(s,k){
+  return s.employment==='社員' && employeeOffPlanV58[s.id] && employeeOffPlanV58[s.id].has(k);
+}
+
 function reqOkV50(s,d,p){
-  let r=reqObj(s.id,ymd(d));
+  let k=ymd(d);
+  if(employeePlannedOffV58(s,k)) return false;
+  let r=reqObj(s.id,k);
   if(s.input==='work'){
     if(r.m==='' || r.m==='×') return false;
     if(r.m==='○') return true;
@@ -1138,12 +1212,52 @@ function reqOkV50(s,d,p){
   }
   return true;
 }
-function patternPoolV50(s,d,idx,k,{slot=null,close=false,setup=false,preferMain=true}={}){
+
+function canAddEmployeeByMonthlyRestV57(s,idx){
+  if(s.employment!=='社員') return true;
+  let k=ymd(dates[idx]);
+  if(employeePlannedOffV58(s,k)) return false;
+  return true;
+}
+
+function employeeTargetWorkDaysV57(){return Math.max(0,dates.length-8)}
+
+function wouldMakeSixConsecutiveV57(id,idx,k){
+  let keys = dates.map(d=>ymd(d));
+  let cur=0;
+  for(let i=0;i<keys.length;i++){
+    let kk=keys[i];
+    let works = !!(schedule[kk]?.[id]) || (i===idx && kk===k);
+    if(works){
+      cur++;
+      if(cur>=6) return true;
+    }else{
+      cur=0;
+    }
+  }
+  return false;
+}
+function rankValueV57(s){return ({A:5,B:4,C:3,D:2,E:1}[s.rank]||3)}
+function skillPriorityV57(s,neededSkills=[]){
+  let bonus=0;
+  neededSkills.forEach(sk=>{
+    if((s.skills||[]).includes(sk)) bonus += rankValueV57(s)*12;
+  });
+  return bonus;
+}
+function employeeTargetWorkDaysV57(){return Math.max(0,dates.length-8)}
+function canAddEmployeeByMonthlyRestV57(s,idx){
+  if(s.employment!=='社員') return true;
+  let k=ymd(dates[idx]);
+  if(employeePlannedOffV58(s,k)) return false;
+  return true;
+}
+
+function patternPoolV50(s,d,idx,k,{slot=null,close=false,setup=false,preferMain=true,forceOther=false,neededSkills=[],allowFixedOther=false}={}){
   let base=(closeHour(d)===23?patEnd:patWeek);
   let fixed = s.mainMode==='固定';
 
   function mainExactOk(p){
-    // 固定の人はメイン時間そのままのみ。セッティング/締めでも勝手に前後させない。
     return Number(p[1])===Number(s.bs) && Number(p[2])===Number(s.be);
   }
 
@@ -1155,13 +1269,16 @@ function patternPoolV50(s,d,idx,k,{slot=null,close=false,setup=false,preferMain=
       if(close && p[2]<closeHour(d)) return false;
       if(slot && !(p[1]<slot[1] && p[2]>slot[0])) return false;
 
-      if(fixed){
-        if(useOther) return false;
-        if(!mainExactOk(p)) return false;
-      }
+      // 固定はメインでは必ずメイン時間そのまま。
+      if(!useOther && fixed && !mainExactOk(p)) return false;
+      // 固定のその他時間は、通常の不足対応では使わない。最後の最後だけ許可。
+      if(useOther && fixed) return false;
 
       if(!rangeOkV50(s,p,useOther,d)) return false;
       if(!reqOkV50(s,d,p)) return false;
+      if(wouldMakeSixConsecutiveV57(s.id,idx,k)) return false;
+      if(!canAddEmployeeByMonthlyRestV57(s,idx) && !schedule[k]?.[s.id]) return false;
+
       if(s.employment==='社員'){
         let raw=patternDuration(p);
         let h=hoursOfShift({start:p[1],end:p[2]});
@@ -1173,9 +1290,12 @@ function patternPoolV50(s,d,idx,k,{slot=null,close=false,setup=false,preferMain=
   }
 
   let main=filt(false).map(p=>({p,useOther:false}));
+  let other=filt(true).map(p=>({p,useOther:true}));
+
+  if(forceOther) return other;
   if(preferMain && main.length) return main;
-  if(fixed) return main; // 固定はその他時間を使わない
-  return main.concat(filt(true).map(p=>({p,useOther:true})));
+  // その他時間はここで返すが、呼び出し側で「メイン候補がない時だけ」使う。
+  return main.concat(other);
 }
 function assignV50(k,s,p){
   schedule[k]??={};
@@ -1202,35 +1322,46 @@ function closingOkV50(k,d,pool){
 function setupV50(k,d,idx,pool){
   // 9時は詳細でセッティングが付いた人から1人だけ
   Object.keys(schedule[k]||{}).forEach(id=>{ if(schedule[k][id].start===9) delete schedule[k][id]; });
-  let choices=[];
-  for(let s of pool.filter(canSetup)){
-    for(let x of patternPoolV50(s,d,idx,k,{setup:true,preferMain:true})){
-      let p=x.p;
-      let pref=(p[2]===13?300:p[2]===15?240:p[2]===17?50:0);
-      choices.push({s,p,score:pref + slotSelectScore(s,idx) + (x.useOther?-240:170) + (s.category==='バイト 早番'?30:0)});
+  function collect(forceOther=false, allowFixedOther=false){
+    let choices=[];
+    for(let s of pool.filter(canSetup)){
+      for(let x of patternPoolV50(s,d,idx,k,{setup:true,preferMain:false,forceOther,neededSkills:['セッティング'],allowFixedOther})){
+        if(x.useOther!==forceOther) continue;
+        let p=x.p;
+        let pref=(p[2]===13?320:p[2]===15?260:p[2]===17?80:0);
+        choices.push({s,p,score:pref + slotSelectScore(s,idx) + skillPriorityV57(s,['セッティング']) + (s.category==='バイト 早番'?30:0)});
+      }
     }
+    choices.sort((a,b)=>b.score-a.score || rankValueV57(b.s)-rankValueV57(a.s));
+    return choices[0]||null;
   }
-  choices.sort((a,b)=>b.score-a.score);
-  if(choices[0]) assignV50(k,choices[0].s,choices[0].p);
+  let c=collect(false,false)||collect(true,false)||collect(true,true); // その他時間は最終手段
+  if(c) assignV50(k,c.s,c.p);
 }
 function chooseCloseV50(k,d,idx,pool,filterFn,excludeIds=new Set()){
-  let choices=[];
-  for(let s of pool){
-    if(filterFn && !filterFn(s)) continue;
-    if(excludeIds.has(s.id)) continue;
-    for(let x of patternPoolV50(s,d,idx,k,{close:true,preferMain:false})){
-      let p=x.p;
-      let already=schedule[k]?.[s.id]?80:0;
-      let mainClose = !x.useOther ? 300 : 0;
-      let skill=(canRegClose(s)?25:0)+(canDrinkClose(s)?25:0);
-      let emp=s.employment==='社員'?80:0;
-      let startPref=(p[1]===13?35:p[1]===15?65:p[1]===17?60:p[1]===18?45:0);
-      let otherPenalty=x.useOther ? -240 : 0;
-      choices.push({s,p,score:mainClose + already + slotSelectScore(s,idx) + skill + emp + startPref + otherPenalty});
+  function collect(forceOther=false, allowFixedOther=false){
+    let choices=[];
+    for(let s of pool){
+      if(filterFn && !filterFn(s)) continue;
+      if(excludeIds.has(s.id)) continue;
+      let needed=[];
+      if(filterFn===canRegClose) needed=['レジ締め'];
+      if(filterFn===canDrinkClose) needed=['ドリバ締め'];
+      for(let x of patternPoolV50(s,d,idx,k,{close:true,preferMain:false,forceOther,neededSkills:needed,allowFixedOther})){
+        if(x.useOther!==forceOther) continue;
+        let p=x.p;
+        let already=schedule[k]?.[s.id]?80:0;
+        let skill=(canRegClose(s)?25:0)+(canDrinkClose(s)?25:0)+skillPriorityV57(s,needed);
+        let emp=s.employment==='社員'?80:0;
+        let startPref=(p[1]===13?35:p[1]===15?65:p[1]===17?60:p[1]===18?45:0);
+        choices.push({s,p,score:already + slotSelectScore(s,idx) + skill + emp + startPref});
+      }
     }
+    choices.sort((a,b)=>b.score-a.score || rankValueV57(b.s)-rankValueV57(a.s) || a.p[1]-b.p[1]);
+    return choices[0]||null;
   }
-  choices.sort((a,b)=>b.score-a.score || a.p[1]-b.p[1]);
-  return choices[0]||null;
+  // その他時間は本当に候補がない時だけ
+  return collect(false,false) || collect(true,false) || collect(true,true);
 }
 function closingV50(k,d,idx,pool){
   let c, closeIds;
@@ -1255,44 +1386,42 @@ function closingV50(k,d,idx,pool){
   }
 }
 function slotSatisfiedV50(k,n,pool){
-  // 最低人数は実人数で見る。戦力換算は「最大人数側に増やすか」の調整目安。
+  // 最低人数は実人数で見る。戦力換算は最大人数側に増やすかの目安。
   return headCountV50(k,n,pool)>=n[2];
 }
-function slotNeedsStrengthBoostV53(k,n,pool){
+function slotNeedsStrengthBoostV57(k,n,pool){
   return headCountV50(k,n,pool)<n[3] && powerV50(k,n,pool)<n[2];
 }
 function chooseSlotV50(k,d,idx,pool,n){
-  function collect(useOtherWanted=false){
+  function collect(forceOther=false, allowFixedOther=false){
     let choices=[];
     for(let s of pool){
-      // すでに今日入っている人は原則追加しない。1日1勤務を基本にする。
-      if(schedule[k]?.[s.id]) continue;
-
-      let all=patternPoolV50(s,d,idx,k,{slot:n,preferMain:false}).filter(x=>x.useOther===useOtherWanted);
-      for(let x of all){
+      if(schedule[k]?.[s.id]) continue; // 基本は1日1勤務
+      let needed = n[4]==='セッティング' ? ['セッティング'] : [];
+      for(let x of patternPoolV50(s,d,idx,k,{slot:n,preferMain:false,forceOther,neededSkills:needed,allowFixedOther})){
+        if(x.useOther!==forceOther) continue;
         let p=x.p;
         if(p[1]===9) continue;
 
         let train=isTrainingV50(s);
         let strongNow=pool.some(t=>coversShiftV50(k,t.id,n) && strengthV50(t)>=1);
         let pair=(train && strongNow)?35:(train?-45:0);
-        let mainBonus=x.useOther ? -260 : 220;
-        let slotStartBonus = p[1]===n[0] ? 95 : (Math.abs(p[1]-n[0])<=1 ? 35 : 0);
+        let slotStartBonus = p[1]===n[0] ? 90 : (Math.abs(p[1]-n[0])<=1 ? 35 : 0);
         let durationPref = -Math.abs((p[2]-p[1])-6)*5;
-        let score=slotSelectScore(s,idx)+turnoverPatternScore(p,d,s,n)+pair+mainBonus+slotStartBonus+durationPref;
+        let score=slotSelectScore(s,idx)+turnoverPatternScore(p,d,s,n)+pair+slotStartBonus+durationPref+skillPriorityV57(s,needed);
         choices.push({s,p,score});
       }
     }
-    choices.sort((a,b)=>b.score-a.score || a.p[1]-b.p[1] || a.p[2]-b.p[2]);
+    choices.sort((a,b)=>b.score-a.score || rankValueV57(b.s)-rankValueV57(a.s) || a.p[1]-b.p[1] || a.p[2]-b.p[2]);
     return choices[0]||null;
   }
-  return collect(false)||collect(true);
+  // メイン時間で誰もいない時だけ、その他時間を使う
+  return collect(false,false)||collect(true,false)||collect(true,true);
 }
-function boostWeakSlotsV53(k,d,idx,pool){
-  // 戦力不足の日は、最大人数の範囲内で1人ずつ足す。弱い子だけで固めない。
+function boostWeakSlotsV57(k,d,idx,pool){
   for(let n of needs(d)){
     let guard=0;
-    while(slotNeedsStrengthBoostV53(k,n,pool) && guard++<3){
+    while(headCountV50(k,n,pool)<n[3] && powerV50(k,n,pool)<n[2] && guard++<2){
       let c=chooseSlotV50(k,d,idx,pool,n);
       if(!c) break;
       assignV50(k,c.s,c.p);
@@ -1300,8 +1429,65 @@ function boostWeakSlotsV53(k,d,idx,pool){
   }
 }
 
+
+function canRemoveKeepingCoreV57(k,d,pool,id){
+  let old=schedule[k]?.[id];
+  if(!old) return false;
+  delete schedule[k][id];
+  let nine=Object.keys(schedule[k]||{}).filter(x=>schedule[k][x].start===9 && pool.some(s=>s.id===x));
+  let ok = nine.length===1 && closingOkV50(k,d,pool) && needs(d).every(n=>headCountV50(k,n,pool)>=n[2]);
+  schedule[k][id]=old;
+  return ok;
+}
+function enforceEmployeeExact8RestsV57(role='ホール'){
+  let target=employeeTargetWorkDaysV57();
+  let pool=candidatePoolForRole(role);
+  let emps=staff.filter(s=>s.role===role && s.employment==='社員');
+
+  // 出勤不足の社員は、予定休みではない日へメイン時間で追加する
+  emps.forEach(s=>{
+    let guard=0;
+    while(monthlyWorkDaysFor(s.id)<target && guard++<50){
+      let best=null;
+      dates.forEach((d,idx)=>{
+        let k=ymd(d);
+        if(schedule[k]?.[s.id]) return;
+        if(employeePlannedOffV58(s,k)) return;
+        let pats=patternPoolV50(s,d,idx,k,{preferMain:true}).filter(x=>!x.useOther);
+        if(!pats.length) return;
+        let p=pats[0].p;
+        let shortage=needs(d).reduce((a,n)=>a+Math.max(0,n[2]-headCountV50(k,n,pool)),0);
+        let closeNeed=closingOkV50(k,d,pool)?0:50;
+        let score=shortage*30 + closeNeed - weekScheduledHoursFor(s.id,idx)*0.3;
+        if(!best || score>best.score) best={k,d,idx,p,score};
+      });
+      if(!best) break;
+      assignV50(best.k,s,best.p);
+    }
+  });
+
+  // 出勤過多の社員は、閉店と最低人数を壊さない日から削る
+  emps.forEach(s=>{
+    let guard=0;
+    while(monthlyWorkDaysFor(s.id)>target && guard++<50){
+      let best=null;
+      dates.forEach((d,idx)=>{
+        let k=ymd(d), p=schedule[k]?.[s.id];
+        if(!p) return;
+        if(p.end>=closeHour(d)) return;
+        if(!canRemoveKeepingCoreV57(k,d,pool,s.id)) return;
+        let score=(p.start===9?80:0)+Math.max(0,20-p.start);
+        if(!best || score>best.score) best={k,score};
+      });
+      if(!best) break;
+      delete schedule[best.k][s.id];
+    }
+  });
+}
+
 function autoMake(role){
   role = role || view.month || 'ホール';
+  buildEmployeeOffPlanV58(role);
   let pool = candidatePoolForRole(role);
   dates.forEach((d,idx)=>{
     let k=ymd(d);
@@ -1324,11 +1510,11 @@ function autoMake(role){
       });
       closingV50(k,d,idx,pool);
     }
-    boostWeakSlotsV53(k,d,idx,pool);
+    boostWeakSlotsV57(k,d,idx,pool);
   });
 
   // 社員は月8休みちょうどに寄せる。閉店/最低人数は最後に再補修。
-  ensureEmployeesExactEightRests(role);
+  enforceEmployeeExact8RestsV57(role);
 
   dates.forEach((d,idx)=>{
     let k=ymd(d), pool=candidatePoolForRole(role);
@@ -1345,16 +1531,46 @@ function autoMake(role){
       });
       closingV50(k,d,idx,pool);
     }
-    boostWeakSlotsV53(k,d,idx,pool);
+    boostWeakSlotsV57(k,d,idx,pool);
   });
 
   dates.forEach((d,idx)=>{
     let k=ymd(d), pool=candidatePoolForRole(role);
-    boostWeakSlotsV53(k,d,idx,pool);
+    boostWeakSlotsV57(k,d,idx,pool);
     trimOverV51(k,d,pool);
     closingV50(k,d,idx,pool);
     setupV50(k,d,idx,pool);
     closingV50(k,d,idx,pool); // v52 final close
+  });
+  enforceEmployeeExact8RestsV57(role); // v57 final employee rest
+  dates.forEach((d,idx)=>{
+    let k=ymd(d), pool=candidatePoolForRole(role);
+    setupV50(k,d,idx,pool);
+    closingV50(k,d,idx,pool);
+    needs(d).forEach(n=>{
+      let safe=0;
+      while(!slotSatisfiedV50(k,n,pool) && safe++<20){
+        let c=chooseSlotV50(k,d,idx,pool,n);
+        if(!c) break;
+        assignV50(k,c.s,c.p);
+      }
+    });
+    boostWeakSlotsV57(k,d,idx,pool);
+    trimOverV51(k,d,pool);
+    closingV50(k,d,idx,pool);
+  });
+  enforceEmployeeExact8RestsV57(role); // v59 very final employee rest
+  dates.forEach((d,idx)=>{
+    let k=ymd(d), pool=candidatePoolForRole(role);
+    closingV50(k,d,idx,pool);
+    needs(d).forEach(n=>{
+      let safe=0;
+      while(!slotSatisfiedV50(k,n,pool) && safe++<20){
+        let c=chooseSlotV50(k,d,idx,pool,n);
+        if(!c) break;
+        assignV50(k,c.s,c.p);
+      }
+    });
   });
   quickSave(); renderAll();
   alert(role==='ホール' ? 'ホールの自動生成をしました' : '調理場は必要人数ルール未設定のため、今は自動生成していません');
@@ -1415,6 +1631,14 @@ function validateCoreRulesV50(role='ホール'){
       if(headCountV50(k,n,pool)>n[3]) issues.push(`${k}: ${n[0]}-${n[1]}人数過多`);
     });
     if(!closingOkV50(k,d,pool)) issues.push(`${k}: 閉店条件NG`);
+  });
+  staff.filter(s=>s.role===role).forEach(s=>{
+    let run=0;
+    dates.forEach(d=>{
+      let k=ymd(d);
+      if(schedule[k]?.[s.id]){ run++; if(run>=6) issues.push(`${s.name}: 6連勤`); }
+      else run=0;
+    });
   });
   staff.filter(s=>s.role===role && s.employment==='社員').forEach(s=>{
     let off=dates.length-monthlyWorkDaysFor(s.id);
@@ -1646,9 +1870,8 @@ function openDetail(id){
     <div><label>入力型</label><select onchange="setStaff('input',this.value)"><option value="off" ${s.input==='off'?'selected':''}>希望休を入力</option><option value="work" ${s.input==='work'?'selected':''}>出勤を入力</option></select></div>
     <div><label>土日出勤</label><select onchange="setStaff('weekend',this.value==='true')"><option value="true" ${s.weekend!==false?'selected':''}>可</option><option value="false" ${s.weekend===false?'selected':''}>不可</option></select></div>
     <div><label>担当</label><select onchange="setStaff('role',this.value)"><option ${s.role==='ホール'?'selected':''}>ホール</option><option ${s.role==='調理場'?'selected':''}>調理場</option></select></div>
-    <div><label>その他時間を使う日</label><select onchange="setStaff('otherMode',this.value)"><option value="フリー" ${s.otherMode==='フリー'||s.otherMode==='なし'?'selected':''}>フリー</option><option ${s.otherMode==='平日'?'selected':''}>平日</option><option ${s.otherMode==='土日祝'?'selected':''}>土日祝</option></select></div>
     <div class="wide"><label>メイン時間</label><div class="timeRange"><select class="mainModeSelect" onchange="setStaff('mainMode',this.value)"><option value="フリー" ${s.mainMode!=='固定'?'selected':''}>フリー</option><option value="固定" ${s.mainMode==='固定'?'selected':''}>固定</option></select><select onchange="setStaff('bs',Number(this.value))">${timeOpts(s.bs,9,23)}</select><span>〜</span><select onchange="setStaff('be',Number(this.value))">${timeOpts(s.be,9,23)}</select></div><div class="otherModeNote">固定は早入り・早上がり・延長なし。フリーは不足時に少し前後調整します。</div></div>
-    <div class="wide"><label>その他時間</label><div class="timeRange"><select onchange="setStaff('os',this.value)">${timeOptsWithNone(s.os,9,23)}</select><span>〜</span><select onchange="setStaff('oe',this.value)">${timeOptsWithNone(s.oe,9,23)}</select></div><div class="otherModeNote">その他時間は、時間が選ばれている時だけ候補になります。未選択ならメイン時間のみです。</div></div>
+    <div class="wide"><label>その他時間</label><div class="timeRange"><select class="otherModeSelect" onchange="setStaff('otherMode',this.value)"><option value="フリー" ${s.otherMode==='フリー'||s.otherMode==='なし'?'selected':''}>フリー</option><option ${s.otherMode==='平日'?'selected':''}>平日</option><option ${s.otherMode==='土日祝'?'selected':''}>土日祝</option></select><select onchange="setStaff('os',this.value)">${timeOptsWithNone(s.os,9,23)}</select><span>〜</span><select onchange="setStaff('oe',this.value)">${timeOptsWithNone(s.oe,9,23)}</select></div><div class="otherModeNote">その他時間は、時間が選ばれている時だけ候補になります。未選択ならメイン時間のみです。固定/フリーどちらでも最終手段です。</div></div>
     <div class="wide"><label>ランク</label><select onchange="setStaff('rank',this.value)"><option value="" ${!s.rank?'selected':''}>未設定</option><option ${s.rank==='A'?'selected':''}>A</option><option ${s.rank==='B'?'selected':''}>B</option><option ${s.rank==='C'?'selected':''}>C</option><option ${s.rank==='D'?'selected':''}>D</option><option ${s.rank==='E'?'selected':''}>E</option></select></div>
   </div>
   <div class="skillGroup" style="margin-top:12px">
